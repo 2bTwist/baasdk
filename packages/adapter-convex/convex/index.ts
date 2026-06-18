@@ -22,8 +22,30 @@
  * branded `GenericId`.
  */
 
-import { mutationGeneric, queryGeneric } from "convex/server";
-import { type GenericId, v } from "convex/values";
+import {
+  type GenericDataModel,
+  type GenericMutationCtx,
+  mutationGeneric,
+  queryGeneric,
+} from "convex/server";
+import { ConvexError, type GenericId, v } from "convex/values";
+
+/**
+ * Whether an opaque id resolves to a live doc. A non-matching id (foreign table
+ * or malformed) makes `ctx.db.get` throw; treat that as absent so callers get a
+ * deterministic boolean instead of an exception.
+ */
+async function exists(
+  ctx: GenericMutationCtx<GenericDataModel>,
+  collection: string,
+  id: string,
+): Promise<boolean> {
+  try {
+    return (await ctx.db.get(collection, id as GenericId<string>)) !== null;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Convex auto-manages `_id` and `_creationTime`; the db rejects them as input on
@@ -49,7 +71,19 @@ export const insert = mutationGeneric({
 
 export const get = queryGeneric({
   args: { collection: v.string(), id: v.string() },
-  handler: async (ctx, { collection, id }) => await ctx.db.get(collection, id as GenericId<string>),
+  handler: async (ctx, { collection, id }) => {
+    try {
+      return await ctx.db.get(collection, id as GenericId<string>);
+    } catch {
+      // `ctx.db.get` throws when the id belongs to a DIFFERENT table (or is
+      // malformed); a removed same-table id already returns null. The portable
+      // contract is "a misused opaque id is absent (null), never a throw," so
+      // collapse it. NOTE this is intentionally MORE lenient than the SQL adapter
+      // (whose `get` would surface a malformed-id DB error); the divergence is
+      // deliberate and the catch is scoped to this single `ctx.db.get` call.
+      return null;
+    }
+  },
 });
 
 export const list = queryGeneric({
@@ -60,6 +94,13 @@ export const list = queryGeneric({
 export const patch = mutationGeneric({
   args: { collection: v.string(), id: v.string(), value: v.any() },
   handler: async (ctx, { collection, id, value }) => {
+    // patch() requires an existing target. Probe first so a missing id is a
+    // DETERMINISTIC not_found, carried in `ConvexError.data`, the channel that
+    // survives Convex's production error scrubbing (a plain throw is hidden from
+    // the client). Bare `ctx.db.patch` would throw an opaque, scrubbed error.
+    if (!(await exists(ctx, collection, id))) {
+      throw new ConvexError({ code: "not_found" });
+    }
     // Shallow merge, maps to the port's `Partial<T>`. NEVER `replace` (full overwrite).
     await ctx.db.patch(collection, id as GenericId<string>, stripSystemFields(value));
   },
@@ -68,7 +109,12 @@ export const patch = mutationGeneric({
 export const remove = mutationGeneric({
   args: { collection: v.string(), id: v.string() },
   handler: async (ctx, { collection, id }) => {
-    await ctx.db.delete(collection, id as GenericId<string>);
+    // Idempotent: deleting a missing id is a no-op, not a throw (bare
+    // `ctx.db.delete` throws "Delete on non-existent doc"). Probe first so a
+    // genuine delete failure on an EXISTING doc still propagates.
+    if (await exists(ctx, collection, id)) {
+      await ctx.db.delete(collection, id as GenericId<string>);
+    }
   },
 });
 

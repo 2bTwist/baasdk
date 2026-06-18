@@ -13,7 +13,11 @@ export default defineConfig({
       "@baas/conformance": src("./packages/conformance/src/index.ts"),
       "@baas/adapter-memory": src("./packages/adapter-memory/src/index.ts"),
       "@baas/adapter-supabase": src("./packages/adapter-supabase/src/index.ts"),
+      // More specific subpath alias MUST precede the bare package alias: Vite
+      // matches string aliases by prefix, so the bare one would otherwise capture
+      // the `/convex` import too.
       "@baas/adapter-convex/convex": src("./packages/adapter-convex/convex/index.ts"),
+      "@baas/adapter-convex": src("./packages/adapter-convex/src/index.ts"),
     },
   },
   test: {

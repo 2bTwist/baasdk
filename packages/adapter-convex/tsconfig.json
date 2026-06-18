@@ -1,0 +1,10 @@
+{
+  "//": "The publishable CLIENT surface (src/). Keeps isolatedDeclarations + the .d.ts snapshot, like the other adapters. The deployable helpers (convex/) build under tsconfig.convex.json without it.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "isolatedDeclarations": true
+  },
+  "include": ["src"]
+}

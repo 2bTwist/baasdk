@@ -17,6 +17,7 @@
  */
 
 import { anyApi, type FunctionReference } from "convex/server";
+import { ConvexError } from "convex/values";
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
 
@@ -95,5 +96,38 @@ describe("@baas/adapter-convex deployable helpers (hermetic)", () => {
     const asAlice = t.withIdentity({ subject: "alice", issuer: "https://issuer.test" });
     const identity = await asAlice.query(baas.whoami, {});
     expect(identity).toMatchObject({ subject: "alice", issuer: "https://issuer.test" });
+  });
+
+  // Deterministic CRUD edge cases the conformance contract requires. Raw Convex
+  // throws on each of these (verified: "Delete on non-existent doc", "Patch on
+  // non-existent document", "expected ID in table X"); the helpers normalize them.
+
+  it("remove of a missing id is idempotent (no throw)", async () => {
+    const t = convexTest(undefined, modules);
+    const id = await t.mutation(baas.insert, { collection: "notes", value: { body: "x" } });
+    await t.mutation(baas.remove, { collection: "notes", id });
+    // Second remove of the now-gone id must NOT throw.
+    await t.mutation(baas.remove, { collection: "notes", id });
+    expect(await t.query(baas.get, { collection: "notes", id })).toBeNull();
+  });
+
+  it("patch of a missing id throws a not_found ConvexError (survives prod scrubbing)", async () => {
+    const t = convexTest(undefined, modules);
+    const id = await t.mutation(baas.insert, { collection: "notes", value: { body: "x" } });
+    await t.mutation(baas.remove, { collection: "notes", id });
+
+    const error = await t
+      .mutation(baas.patch, { collection: "notes", id, value: { body: "y" } })
+      .then(() => null)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ConvexError);
+    expect((error as ConvexError<{ code: string }>).data).toMatchObject({ code: "not_found" });
+  });
+
+  it("get of a foreign-table id returns null (not a throw)", async () => {
+    const t = convexTest(undefined, modules);
+    const todoId = await t.mutation(baas.insert, { collection: "todos", value: { title: "t" } });
+    // A valid id, but for a different table: absent, not an error.
+    expect(await t.query(baas.get, { collection: "notes", id: todoId })).toBeNull();
   });
 });
