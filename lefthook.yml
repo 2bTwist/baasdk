@@ -1,7 +1,8 @@
-# Commit-level strict gate — the same bar as CI, run locally before the push.
-# Phases 2–3 add their boundary + type-aware-lint checks here as they land.
+# Commit-level strict gate. The same bar as CI, run locally before the push.
+# Phases 2-3 add their boundary and type-aware-lint checks here as they land.
+# Not parallel: biome --write rewrites staged files, so it must finish before
+# typecheck reads them (no concurrent write/read race).
 pre-commit:
-  parallel: true
   commands:
     biome:
       glob: "*.{ts,tsx,js,jsx,json,jsonc}"

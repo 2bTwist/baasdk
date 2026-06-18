@@ -23,7 +23,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Lint (zero warnings — Definition of Done)
+      - name: Lint (zero warnings, Definition of Done)
         run: pnpm exec biome ci --error-on-warnings .
       - name: Typecheck
         run: pnpm exec turbo run typecheck
@@ -43,9 +43,10 @@ jobs:
           fetch-depth: 0
       - name: Require a changeset for publishable package src changes
         run: |
-          git fetch origin "${{ github.base_ref }}" --depth=1
+          # fetch-depth:0 above already has full history incl. origin/<base>;
+          # a shallow re-fetch would truncate it and break the merge-base diff.
           changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
-          # Publishable packages only — @baas/conformance is ignored by changesets.
+          # Publishable packages only. @baas/conformance is ignored by changesets.
           if echo "$changed" | grep -Eq '^packages/(core|adapter-[^/]+)/src/'; then
             if ! echo "$changed" | grep -E '^\.changeset/[^/]+\.md$' | grep -qiv 'readme'; then
               echo "::error::A publishable package's src/ changed but no changeset was added. Run 'pnpm changeset'."
@@ -54,18 +55,22 @@ jobs:
           fi
 
   all-green:
-    # The single status branch protection requires. Stays stable as Phases 2–4
+    # The single status branch protection requires. Stays stable as Phases 2-4
     # add more jobs to `needs`.
     if: always()
     needs: [verify, changeset-check]
     runs-on: ubuntu-latest
     steps:
-      - name: Require all checks to pass (skipped is allowed)
+      - name: Require all checks to pass
         run: |
           echo "verify=${{ needs.verify.result }} changeset-check=${{ needs.changeset-check.result }}"
-          for r in "${{ needs.verify.result }}" "${{ needs.changeset-check.result }}"; do
-            if [ "$r" != "success" ] && [ "$r" != "skipped" ]; then
-              echo "::error::A required job did not pass"
-              exit 1
-            fi
-          done
+          # verify must SUCCEED (never skipped). changeset-check is legitimately
+          # skipped on push to main, so success-or-skipped is allowed only for it.
+          if [ "${{ needs.verify.result }}" != "success" ]; then
+            echo "::error::verify did not pass"
+            exit 1
+          fi
+          if [ "${{ needs.changeset-check.result }}" != "success" ] && [ "${{ needs.changeset-check.result }}" != "skipped" ]; then
+            echo "::error::changeset-check did not pass"
+            exit 1
+          fi

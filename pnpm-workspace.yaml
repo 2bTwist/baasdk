@@ -5,7 +5,7 @@ packages:
 # hardening; these are the explicit per-dependency decisions pnpm requires.
 # biome + turbo need their postinstall to fetch platform binaries (approved).
 # esbuild ships its binary via @esbuild/<platform>, so its postinstall is not
-# needed (declined — not run).
+# needed (declined, not run).
 allowBuilds:
   "@biomejs/biome": true
   turbo: true

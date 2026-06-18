@@ -26,7 +26,7 @@ jobs:
       - run: pnpm exec turbo run build
       # With pending changesets, this opens/updates a "Version Packages" PR (no
       # npm auth needed). It only PUBLISHES once that PR merges and the changesets
-      # are consumed — at which point NODE_AUTH_TOKEN (npm trusted-publishing or
+      # are consumed, at which point NODE_AUTH_TOKEN (npm trusted-publishing or
       # an NPM_TOKEN secret) must be configured. Provenance is on via id-token.
       - name: Create release PR or publish
         uses: changesets/action@v1
