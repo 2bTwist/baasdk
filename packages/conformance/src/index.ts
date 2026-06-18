@@ -13,6 +13,8 @@
 
 import {
   type Backend,
+  CAPABILITY_KEYS,
+  type Capabilities,
   type DocumentId,
   isOk,
   type Result,
@@ -372,6 +374,56 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
 
         expectOk(await backend.files.remove(handle));
         expect(expectOk(await backend.files.getUrl(handle))).toBeNull();
+      });
+    });
+
+    // -- capability coverage: no flag silently untested --------------------
+
+    describe("capabilities", () => {
+      // The suite must ACCOUNT FOR every capability in one of two ways:
+      //  - behaviorally gated: the suite BRANCHES on the flag (see the named
+      //    describe block) and asserts the capability's behavior when true. The
+      //    false branch takes the documented negative path, which is a strict
+      //    counter-assertion for some flags (reactiveQueries: no further delivery
+      //    after a mutation) but only "the behavior is not required" for others (a
+      //    non-transactional backend MAY leave a partial write, so the suite does
+      //    not force a leak). So "gated" means the flag changes what the suite
+      //    asserts, NOT that every false branch is a strict negative.
+      //  - descriptor-only: provider power reached through native(), or a
+      //    performance trait, that has no portable behavioral assertion.
+      // A capability that is NEITHER is a hole: the test below fails until a newly
+      // added flag is classified (and, if behavioral, gated). This is the anti-rot
+      // guard that keeps the portability claim honest as `core` grows.
+      const BEHAVIORALLY_GATED: ReadonlySet<keyof Capabilities> = new Set([
+        "multiDocumentTransactions", // see describe("transactions")
+        "reactiveQueries", // see describe("subscribe()")
+        "managesCredentials", // see describe("AuthProvider")
+        "fileStorage", // see describe("FileStore")
+      ]);
+      const DESCRIPTOR_ONLY: ReadonlySet<keyof Capabilities> = new Set([
+        "serverSideJoins", // reached via native(); not a portable behavior
+        "aggregations", // reached via native(); not a portable behavior
+        "efficientFilterRequiresIndex", // performance trait; a leak we name, not a behavior
+      ]);
+
+      it("declares every capability as a boolean", () => {
+        for (const key of CAPABILITY_KEYS) {
+          expect(typeof backend.capabilities[key], `capability "${key}"`).toBe("boolean");
+        }
+      });
+
+      it("accounts for every capability (gated in both directions, or descriptor-only)", () => {
+        for (const key of CAPABILITY_KEYS) {
+          const accounted = BEHAVIORALLY_GATED.has(key) || DESCRIPTOR_ONLY.has(key);
+          expect(
+            accounted,
+            `capability "${key}" is unclassified: gate it in both directions in this suite, or mark it descriptor-only`,
+          ).toBe(true);
+        }
+        // No stale classification: every classified key is still a real capability.
+        for (const key of [...BEHAVIORALLY_GATED, ...DESCRIPTOR_ONLY]) {
+          expect([...CAPABILITY_KEYS]).toContain(key);
+        }
       });
     });
 

@@ -76,6 +76,15 @@ interface Capabilities {
     readonly fileStorage: boolean;
 }
 /**
+ * The runtime list of every `Capabilities` key. The conformance suite's
+ * type-level test asserts this is EXHAUSTIVE against the interface and free of
+ * typos (exact `toEqualTypeOf` in both directions), so it is a trustworthy
+ * source of truth for iterating capabilities, e.g. to guard against a newly
+ * added flag silently going untested. (`as const` keeps the literal-tuple type
+ * that check relies on; an explicit `satisfies` would break isolatedDeclarations.)
+ */
+declare const CAPABILITY_KEYS: readonly ["multiDocumentTransactions", "reactiveQueries", "serverSideJoins", "aggregations", "efficientFilterRequiresIndex", "managesCredentials", "fileStorage"];
+/**
  * Cancels a subscription. Modeled as a callable; adapters may also attach
  * properties (Convex's Unsubscribe is both), which callers can ignore.
  */
@@ -218,4 +227,4 @@ type Adapter<Config = unknown, S extends StoreSchema = AnySchema> = (config: Con
 declare const supportsReactivity: (b: Pick<Backend, "capabilities">) => boolean;
 declare const supportsTransactions: (b: Pick<Backend, "capabilities">) => boolean;
 
-export { type Adapter, type AnySchema, type AuthProvider, type Backend, type BackendError, type Capabilities, type CredentialAuth, type DocumentId, type DocumentStore, type ErrorCode, type FileHandle, type FileStore, type Identity, type OAuthOptions, type OAuthResult, type OperationSpec, type Result, type Session, type StoreSchema, type TokenFetcher, type Unsubscribe, type UploadOptions, err, isOk, ok, supportsCredentials, supportsReactivity, supportsTransactions };
+export { type Adapter, type AnySchema, type AuthProvider, type Backend, type BackendError, CAPABILITY_KEYS, type Capabilities, type CredentialAuth, type DocumentId, type DocumentStore, type ErrorCode, type FileHandle, type FileStore, type Identity, type OAuthOptions, type OAuthResult, type OperationSpec, type Result, type Session, type StoreSchema, type TokenFetcher, type Unsubscribe, type UploadOptions, err, isOk, ok, supportsCredentials, supportsReactivity, supportsTransactions };

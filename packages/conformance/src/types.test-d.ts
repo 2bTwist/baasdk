@@ -10,6 +10,8 @@
 import {
   type AuthProvider,
   type Backend,
+  type CAPABILITY_KEYS,
+  type Capabilities,
   type CredentialAuth,
   type DocumentId,
   type Result,
@@ -60,5 +62,14 @@ describe("capability narrowing", () => {
       expectTypeOf(auth).toExtend<CredentialAuth>();
       expectTypeOf(auth.signInWithPassword).toBeFunction();
     }
+  });
+});
+
+describe("capability key coverage", () => {
+  it("CAPABILITY_KEYS is exhaustive against Capabilities (both directions)", () => {
+    // toEqualTypeOf is exact: a capability added to the interface but not the
+    // array (or vice versa) fails here, so the runtime list can never silently
+    // drift from the type. This is what lets the runtime meta-test trust it.
+    expectTypeOf<(typeof CAPABILITY_KEYS)[number]>().toEqualTypeOf<keyof Capabilities>();
   });
 });
