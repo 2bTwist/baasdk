@@ -65,10 +65,10 @@ module.exports = {
     // Record edges into node_modules (so provider-SDK imports are visible to the
     // rules) but do not recurse into them.
     doNotFollow: { path: "node_modules" },
-    // Exclude our own build output and the throwaway spike. Anchored to
-    // `^packages/*/dist/` so it does NOT match node_modules packages that ship
-    // from dist/; dropping those would hide the provider edges core must reject.
-    exclude: { path: "^packages/[^/]+/dist/|^spike/" },
+    // Exclude our own build output. Anchored to `^packages/*/dist/` so it does
+    // NOT match node_modules packages that ship from dist/; dropping those would
+    // hide the provider edges core must reject.
+    exclude: { path: "^packages/[^/]+/dist/" },
     // tsconfig.json (not base) carries the @baas/* path map, so cross-package
     // imports resolve to source. No build needed, paths stay under packages/.
     tsConfig: { fileName: "tsconfig.json" },

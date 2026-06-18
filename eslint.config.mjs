@@ -23,7 +23,6 @@ export default tseslint.config(
     ignores: [
       "**/dist/**",
       "**/_generated/**",
-      "spike/**",
       "**/*.config.{ts,mts,cts,js,mjs,cjs}",
       "eslint-local/**",
     ],
