@@ -12,12 +12,14 @@
     "test:watch": "vitest",
     "lint": "biome check .",
     "format": "biome format --write .",
+    "verify": "biome ci --error-on-warnings . && turbo run typecheck build && vitest run",
     "release": "changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^2",
     "@changesets/cli": "^2",
     "@types/node": "^25.9.3",
+    "lefthook": "^2.1.9",
     "tsup": "^8",
     "turbo": "^2",
     "typescript": "^5.7",

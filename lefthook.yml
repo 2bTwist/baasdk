@@ -1,0 +1,13 @@
+# Commit-level strict gate — the same bar as CI, run locally before the push.
+# Phases 2–3 add their boundary + type-aware-lint checks here as they land.
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{ts,tsx,js,jsx,json,jsonc}"
+      # Auto-fix what's fixable and re-stage; fail the commit on any remaining
+      # warning or error (zero-warnings Definition of Done).
+      run: pnpm exec biome check --write --error-on-warnings --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    typecheck:
+      run: pnpm exec turbo run typecheck

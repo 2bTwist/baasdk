@@ -4,3 +4,7 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
+
+# Local planning/research docs (groundwork/plan output). Kept out of the public
+# repo: they reference cross-project and personal working-style notes.
+specs/

@@ -8,8 +8,8 @@
  * the adapter quietly doing the same thing.
  */
 
+import { createMemoryBackend, MemoryError } from "@baas/adapter-memory";
 import type { ConformanceSchema, Todo } from "@baas/conformance";
-import { MemoryError, createMemoryBackend } from "@baas/adapter-memory";
 import type { Backend, Capabilities } from "@baas/core";
 
 export function makeMemoryConformanceBackend(
