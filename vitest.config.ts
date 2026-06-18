@@ -13,10 +13,15 @@ export default defineConfig({
       "@baas/conformance": src("./packages/conformance/src/index.ts"),
       "@baas/adapter-memory": src("./packages/adapter-memory/src/index.ts"),
       "@baas/adapter-supabase": src("./packages/adapter-supabase/src/index.ts"),
+      "@baas/adapter-convex/convex": src("./packages/adapter-convex/convex/index.ts"),
     },
   },
   test: {
     include: ["packages/**/*.test.ts"],
+    // convex-test runs the real function code in an edge runtime and must not be
+    // pre-bundled (it inspects import.meta.glob module maps). Harmless for other
+    // packages; the convex hermetic test opts into the env via a file docblock.
+    server: { deps: { inline: ["convex-test"] } },
     typecheck: {
       enabled: true,
       include: ["packages/**/*.test-d.ts"],

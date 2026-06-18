@@ -1,0 +1,10 @@
+{
+  "//": "The deployable helpers (the ./convex entry). NO isolatedDeclarations: they are built on Convex's generic builders, whose RegisteredQuery/RegisteredMutation return types are inferred and cannot be emitted in isolation. Their .d.ts is a convenience for attw only, dispatch is dynamic via anyApi.baas.*, so consumers never import these types. The publishable CLIENT surface (src/, added with the client adapter) keeps isolatedDeclarations + the .d.ts snapshot.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "convex",
+    "outDir": "dist",
+    "noEmit": true
+  },
+  "include": ["convex"]
+}

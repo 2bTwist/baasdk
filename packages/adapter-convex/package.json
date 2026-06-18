@@ -1,0 +1,38 @@
+{
+  "name": "@baas/adapter-convex",
+  "version": "0.0.0",
+  "description": "Convex adapter for @baas/core: deployable schemaless CRUD, storage, and auth helpers behind the ports (the ./convex entry). Client adapter in progress.",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    "./convex": {
+      "types": "./dist/convex.d.ts",
+      "import": "./dist/convex.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.convex.json",
+    "convex:codegen": "convex codegen",
+    "lint:publish": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "peerDependencies": {
+    "convex": "^1"
+  },
+  "dependencies": {
+    "@baas/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@baas/conformance": "workspace:^",
+    "@edge-runtime/vm": "^5",
+    "convex": "^1",
+    "convex-test": "^0.0.53",
+    "tsup": "^8",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  }
+}
