@@ -8,6 +8,7 @@
       "@baas/conformance": ["packages/conformance/src/index.ts"],
       "@baas/adapter-memory": ["packages/adapter-memory/src/index.ts"],
       "@baas/adapter-supabase": ["packages/adapter-supabase/src/index.ts"],
+      "@baas/adapter-convex": ["packages/adapter-convex/src/index.ts"],
       "@baas/adapter-convex/convex": ["packages/adapter-convex/convex/index.ts"]
     }
   },

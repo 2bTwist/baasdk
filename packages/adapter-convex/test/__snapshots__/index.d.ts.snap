@@ -1,0 +1,38 @@
+import { StoreSchema, AnySchema, Capabilities, Adapter, Backend } from '@baas/core';
+import { ConvexClient } from 'convex/browser';
+import { FunctionReference } from 'convex/server';
+
+/**
+ * `@baas/adapter-convex`, the Convex adapter (client side).
+ *
+ * Assembles the `Backend` from a `ConvexClient`:
+ *  - `ConvexDocumentStore` (named ops via configured FunctionReferences; direct
+ *    CRUD + subscriptions via the deployed `./convex` helpers)
+ *  - `ConvexAuth` (verify-only; `managesCredentials: false`)
+ *  - `ConvexFileStore` (the upload-URL-then-POST dance)
+ *
+ * The deployed helpers (`insert`/`get`/`list`/`patch`/`remove`/`whoami`/
+ * `generateUploadUrl`/`getFileUrl`/`deleteFile`) live under one module in the
+ * app's `convex/` dir, `baas` by default, and are dispatched dynamically via
+ * `anyApi`. See the `./convex` entry and the package README for setup.
+ */
+
+interface ConvexConfig<S extends StoreSchema = AnySchema> {
+    /** A ready client, or a `url` to construct one. */
+    readonly client?: ConvexClient;
+    readonly url?: string;
+    /** Module the helpers were re-exported under in the app's `convex/` dir. Default `"baas"`. */
+    readonly helpersModule?: string;
+    readonly queries: {
+        readonly [K in keyof S["queries"]]: FunctionReference<"query">;
+    };
+    readonly mutations: {
+        readonly [K in keyof S["mutations"]]: FunctionReference<"mutation">;
+    };
+    readonly capabilities?: Partial<Capabilities>;
+}
+declare function createConvexBackend<S extends StoreSchema = AnySchema>(config: ConvexConfig<S>): Backend<S>;
+/** `Adapter`-typed entry point for symmetry with the other adapters. */
+declare const convexAdapter: Adapter<ConvexConfig>;
+
+export { type ConvexConfig, convexAdapter, createConvexBackend };

@@ -5,18 +5,24 @@
   "type": "module",
   "license": "MIT",
   "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./convex": {
       "types": "./dist/convex.d.ts",
       "import": "./dist/convex.js"
     }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit -p tsconfig.convex.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.convex.json",
     "convex:codegen": "convex codegen",
     "lint:publish": "publint --strict && attw --pack . --profile esm-only"
   },

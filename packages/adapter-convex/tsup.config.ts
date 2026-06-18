@@ -1,16 +1,31 @@
 import { defineConfig } from "tsup";
 
-// One entry for now: the deployable server helpers (the `./convex` export). The
-// client adapter (`.` / `src/index.ts`) lands with its own entry next, under a
-// separate config so it can keep isolatedDeclarations while the helpers do not.
-export default defineConfig({
-  entry: { convex: "convex/index.ts" },
-  format: ["esm"],
-  dts: true,
-  clean: true,
-  sourcemap: true,
-  target: "es2022",
-  tsconfig: "tsconfig.convex.json",
-  // Convex is a peer dependency, never bundle it.
-  external: ["convex", "convex/server", "convex/values", "convex/browser"],
-});
+// Convex is a peer dependency, never bundle it.
+const external = ["convex", "convex/server", "convex/values", "convex/browser"];
+
+// Two configs so each entry uses its own tsconfig: the client surface keeps
+// isolatedDeclarations (+ the .d.ts snapshot); the deployable helpers cannot
+// satisfy it (generic-builder return types are inferred), so they build under
+// tsconfig.convex.json. Only the first cleans dist.
+export default defineConfig([
+  {
+    entry: { index: "src/index.ts" },
+    format: ["esm"],
+    dts: true,
+    clean: true,
+    sourcemap: true,
+    target: "es2022",
+    tsconfig: "tsconfig.json",
+    external,
+  },
+  {
+    entry: { convex: "convex/index.ts" },
+    format: ["esm"],
+    dts: true,
+    clean: false,
+    sourcemap: true,
+    target: "es2022",
+    tsconfig: "tsconfig.convex.json",
+    external,
+  },
+]);

@@ -1,4 +1,3 @@
 {
-  "//": "Points the Convex CLI (codegen + dev) at the test app, NOT the published helper source in ./convex. The test app (test/convex) re-exports those helpers and adds named ops, mirroring what a consumer sets up; convex-test and live conformance run against it.",
   "functions": "test/convex/"
 }
