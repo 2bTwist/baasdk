@@ -194,11 +194,19 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     id: DocumentId,
     value: Partial<T>,
   ): Promise<Result<void>> {
-    const { error } = await this.sb
+    // `.select(pk)` makes PostgREST return the affected rows, so 0 rows means the
+    // document did not exist: patch requires an existing target, so report
+    // not_found (the portable contract; remove() stays idempotent). Caveat: under
+    // RLS, an update permitted but a select denied would also yield 0 rows here.
+    const { data, error } = await this.sb
       .from(collection)
       .update(value as Record<string, unknown>)
-      .eq(this.pk, id);
+      .eq(this.pk, id)
+      .select(this.pk);
     if (error) return err(toBackendError(error));
+    if (!data || data.length === 0) {
+      return err({ code: "not_found", message: `no document ${id} in "${collection}"` });
+    }
     return ok(undefined);
   }
 
