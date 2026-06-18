@@ -1,0 +1,35 @@
+{
+  "name": "@baas/adapter-supabase",
+  "version": "0.0.0",
+  "description": "Supabase adapter: PostgREST document store, Supabase Auth (credential management), and Supabase Storage, behind the @baas/core ports.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@supabase/supabase-js": "^2"
+  },
+  "dependencies": {
+    "@baas/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@baas/conformance": "workspace:^",
+    "@supabase/supabase-js": "^2",
+    "tsup": "^8",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  }
+}

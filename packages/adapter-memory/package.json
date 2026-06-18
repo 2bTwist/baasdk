@@ -1,0 +1,31 @@
+{
+  "name": "@baas/adapter-memory",
+  "version": "0.0.0",
+  "description": "In-memory reference adapter. The executable spec and test fixture; passes the conformance suite 100% by definition.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@baas/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@baas/conformance": "workspace:^",
+    "tsup": "^8",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  }
+}

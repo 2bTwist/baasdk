@@ -1,0 +1,66 @@
+# @baas/adapter-supabase
+
+The first real adapter. Implements the `@baas/core` ports over Supabase:
+
+| Port | Supabase mapping |
+|------|------------------|
+| `DocumentStore` direct CRUD | PostgREST (`from(table).select/insert/update/delete`) |
+| `DocumentStore` named ops (`run`/`mutate`) | app-supplied functions over the client (per-backend, like the in-memory adapter) |
+| `subscribe` | one-shot delivery (`reactiveQueries: false`; Realtime is opt-in) |
+| `AuthProvider` + `CredentialAuth` | Supabase Auth (`managesCredentials: true`) |
+| `FileStore` | Supabase Storage (FileHandle = `bucket::path`) |
+
+Declared capabilities: `multiDocumentTransactions: false` (no
+client-side tx), `reactiveQueries: false`, `serverSideJoins`/`aggregations: true`
+(reach them via `.native()`), `managesCredentials: true`, `fileStorage: true`.
+
+## Usage
+
+```ts
+import { createSupabaseBackend } from "@baas/adapter-supabase";
+
+const backend = createSupabaseBackend({
+  url: process.env.SUPABASE_URL,
+  key: process.env.SUPABASE_KEY, // or pass a ready `client`
+  queries: {
+    listTodos: async (sb) => {
+      const { data, error } = await sb.from("todos").select("*");
+      if (error) throw error;
+      return data;
+    },
+  },
+  mutations: {
+    addTodo: async (sb, { title }) => {
+      const { data, error } = await sb.from("todos").insert({ title }).select("id").single();
+      if (error) throw error;
+      return data.id;
+    },
+  },
+});
+```
+
+Named operations are per-backend by design: the portable surface is
+the calling convention + Result/capability shape, not the query implementations.
+Rich PostgREST features (embedded joins, aggregates, RLS-aware Realtime) are
+reached through `backend.store.native()` — not added to the core contract.
+
+## Running the conformance suite (live)
+
+The suite runs against a real local stack and skips when its env vars are absent.
+
+```bash
+cd packages/adapter-supabase
+supabase start                       # boots Postgres/PostgREST/GoTrue/Storage via Docker
+# migrations in supabase/migrations/ create the `todos`/`notes` tables + bucket
+
+export SUPABASE_URL="http://127.0.0.1:54321"
+export SUPABASE_SERVICE_ROLE_KEY="$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')"
+
+pnpm vitest run packages/adapter-supabase   # 15/15 against the live stack
+supabase stop                        # tear the stack down when done
+```
+
+The service-role key is used so the test's reset (table truncation, auth-user
+cleanup) bypasses RLS. The fixture (`test/fixture.ts`) resets persistent state on
+every construction, since — unlike the in-memory adapter — a real database
+carries state between tests.
