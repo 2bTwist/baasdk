@@ -96,6 +96,42 @@ per-backend by design.
 Every divergence between backends is a declared capability flag, asserted in both
 directions by the suite. See the generated **[capability matrix](docs/CAPABILITIES.md)**.
 
+## When to use baasdk (and when not)
+
+**Decision rule:** baasdk pays off exactly when the cost of being locked to one
+backend exceeds the cost of the portable-surface tax. Below that line it is pure
+tax, and the honest answer is to use the provider SDK directly. State it plainly,
+the honesty is the point.
+
+**Use it when:**
+
+- **You are building a backend-agnostic library or framework** (an auth-session
+  store, a CMS toolkit, a workflow engine) that must persist data but must not
+  dictate the consumer's backend. The strongest case.
+- **You ship a multi-backend product** (bring-your-own-Supabase vs use-our-Convex,
+  or per-tenant backend choice).
+- **You want to test in memory and deploy to a real backend.** Run the whole
+  suite against `@baas/adapter-memory` (fast, hermetic, no Docker), then deploy
+  against Supabase or Convex trusting the contract holds. This pays off even for
+  a single-backend app, purely as a testing strategy.
+- **You are migrating Supabase <-> Convex gradually.** Move portable CRUD / auth
+  / files first, and keep joins and aggregations on the old backend through
+  `.native()` until last.
+
+**Do not use it when:**
+
+- **You have a single backend and need its full power** (RLS, joins, materialized
+  views, vector search, the full PostgREST grammar). Use the provider SDK directly.
+- **Your core value is the relational model** (analytics, reporting, join-heavy
+  work). Such an app lives almost entirely in `.native()`, so the abstraction
+  buys little.
+- **A latency- or cost-critical path depends on the index-vs-scan difference**
+  that the portable surface deliberately does not model.
+
+Provider-specific power is never walled off: every port exposes a typed
+`.native()` escape hatch (see the [native-escape-hatch example](examples/native-escape-hatch/)).
+The point of the abstraction is the portable core, not to hide the backend.
+
 ## Packages
 
 - **`@baas/core`** — the port layer. Interfaces, types, capability descriptors,
