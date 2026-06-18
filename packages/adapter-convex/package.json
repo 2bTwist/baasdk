@@ -21,7 +21,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsup",
+    "build": "rm -rf dist && tsup",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.convex.json",
     "convex:codegen": "convex codegen",
     "lint:publish": "publint --strict && attw --pack . --profile esm-only"

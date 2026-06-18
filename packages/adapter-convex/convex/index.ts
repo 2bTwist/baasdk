@@ -76,9 +76,11 @@ export const get = queryGeneric({
       return await ctx.db.get(collection, id as GenericId<string>);
     } catch {
       // `ctx.db.get` throws when the id belongs to a DIFFERENT table (or is
-      // malformed); a removed same-table id already returns null. For the
-      // portable contract a misused opaque id is "absent," matching the SQL
-      // adapter's `get`, so collapse the throw to null.
+      // malformed); a removed same-table id already returns null. The portable
+      // contract is "a misused opaque id is absent (null), never a throw," so
+      // collapse it. NOTE this is intentionally MORE lenient than the SQL adapter
+      // (whose `get` would surface a malformed-id DB error); the divergence is
+      // deliberate and the catch is scoped to this single `ctx.db.get` call.
       return null;
     }
   },
@@ -93,7 +95,7 @@ export const patch = mutationGeneric({
   args: { collection: v.string(), id: v.string(), value: v.any() },
   handler: async (ctx, { collection, id, value }) => {
     // patch() requires an existing target. Probe first so a missing id is a
-    // DETERMINISTIC not_found, carried in `ConvexError.data` — the channel that
+    // DETERMINISTIC not_found, carried in `ConvexError.data`, the channel that
     // survives Convex's production error scrubbing (a plain throw is hidden from
     // the client). Bare `ctx.db.patch` would throw an opaque, scrubbed error.
     if (!(await exists(ctx, collection, id))) {

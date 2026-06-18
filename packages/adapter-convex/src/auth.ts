@@ -58,6 +58,7 @@ function decodeJwtExp(token: string): number | null {
 
 export class ConvexAuth implements AuthProvider {
   readonly capabilities: Pick<Capabilities, "managesCredentials">;
+  private fetcher: TokenFetcher | null = null;
   private lastToken: string | null = null;
   private readonly listeners = new Set<(session: Session | null) => void>();
 
@@ -69,6 +70,7 @@ export class ConvexAuth implements AuthProvider {
   }
 
   setToken(fetcher: TokenFetcher): void {
+    this.fetcher = fetcher;
     this.client.setAuth(
       async (args) => {
         // Convex's arg is `forceRefreshToken`, NOT `forceRefresh` (core's name).
@@ -83,6 +85,7 @@ export class ConvexAuth implements AuthProvider {
   }
 
   clearToken(): void {
+    this.fetcher = null;
     this.lastToken = null;
     this.client.setAuth(async () => null);
     void this.emit(false);
@@ -98,17 +101,25 @@ export class ConvexAuth implements AuthProvider {
   }
 
   async getSession(): Promise<Result<Session | null>> {
-    // No token set means unauthenticated, answerable WITHOUT a network round-trip.
-    if (this.lastToken === null) return ok(null);
+    // No fetcher ever set means genuinely unauthenticated, answerable WITHOUT a
+    // round-trip. Once a fetcher IS set we must ask the server: `lastToken` lands
+    // only after Convex first invokes the fetcher, so short-circuiting on it would
+    // hide a session that is about to exist. The whoami query forces that fetch.
+    if (this.fetcher === null) return ok(null);
     const identity = await this.getIdentity();
     if (!identity.ok) return identity;
-    if (!identity.data) return ok(null);
+    // An authenticated whoami means Convex ran the fetcher, so lastToken is set.
+    if (!identity.data || this.lastToken === null) return ok(null);
     return ok(this.buildSession(identity.data, this.lastToken));
   }
 
   onAuthStateChange(callback: (session: Session | null) => void): Unsubscribe {
     this.listeners.add(callback);
-    // Deliver the current state once (async), per the contract.
+    // Deliver the current state once (async), per the contract. KNOWN LIMITATION
+    // (tracked as the deferred conformance case "onAuthStateChange ordering"):
+    // if a `setAuth` transition fires between adding the listener and this initial
+    // delivery, the listener can see the transition first and the initial state
+    // late. Harmless for the unauthenticated path; revisit with the ordering case.
     void (async () => {
       const session = await this.getSession();
       callback(session.ok ? session.data : null);
