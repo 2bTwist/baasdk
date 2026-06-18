@@ -18,7 +18,8 @@
     "knip": "knip",
     "size": "size-limit",
     "docs:capabilities": "node scripts/capability-matrix.mjs",
-    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && pnpm lint:types && turbo run typecheck build && node scripts/capability-matrix.mjs --check && vitest run",
+    "docs:quickstart": "node scripts/quickstart-snippet.mjs",
+    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && pnpm lint:types && turbo run typecheck build && node scripts/capability-matrix.mjs --check && node scripts/quickstart-snippet.mjs --check && vitest run",
     "release": "changeset publish",
     "lint:publish": "pnpm -r run lint:publish"
   },
