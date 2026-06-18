@@ -35,7 +35,7 @@ function isResultType(type) {
   return symbol?.getName() === "Result";
 }
 
-export const mustUseResult = createRule({
+const mustUseResult = createRule({
   name: "must-use-result",
   meta: {
     type: "problem",
