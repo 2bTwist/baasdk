@@ -34,6 +34,21 @@ jobs:
         # SUPABASE_URL on the runner. It runs locally against `supabase start`.
         run: pnpm exec vitest run
 
+  boundaries:
+    # Separate from lint so a violation reads as an architectural failure, not
+    # lint noise: core imports no provider SDK, adapters don't import each other,
+    # no cycles.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:boundaries
+
   changeset-check:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -58,18 +73,20 @@ jobs:
     # The single status branch protection requires. Stays stable as Phases 2-4
     # add more jobs to `needs`.
     if: always()
-    needs: [verify, changeset-check]
+    needs: [verify, boundaries, changeset-check]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks to pass
         run: |
-          echo "verify=${{ needs.verify.result }} changeset-check=${{ needs.changeset-check.result }}"
-          # verify must SUCCEED (never skipped). changeset-check is legitimately
-          # skipped on push to main, so success-or-skipped is allowed only for it.
-          if [ "${{ needs.verify.result }}" != "success" ]; then
-            echo "::error::verify did not pass"
-            exit 1
-          fi
+          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} changeset-check=${{ needs.changeset-check.result }}"
+          # verify + boundaries must SUCCEED (never skipped). changeset-check is
+          # legitimately skipped on push to main, so success-or-skipped only there.
+          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}"; do
+            if [ "${job#*:}" != "success" ]; then
+              echo "::error::${job%%:*} did not pass"
+              exit 1
+            fi
+          done
           if [ "${{ needs.changeset-check.result }}" != "success" ] && [ "${{ needs.changeset-check.result }}" != "skipped" ]; then
             echo "::error::changeset-check did not pass"
             exit 1
