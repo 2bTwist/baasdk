@@ -21,7 +21,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["packages/**/*.test.ts"],
+    include: ["packages/**/*.test.ts", "examples/**/*.test.ts"],
     // convex-test runs the real function code in an edge runtime and must not be
     // pre-bundled (it inspects import.meta.glob module maps). Harmless for other
     // packages; the convex hermetic test opts into the env via a file docblock.

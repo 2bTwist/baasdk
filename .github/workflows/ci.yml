@@ -29,6 +29,10 @@ jobs:
         run: pnpm exec turbo run typecheck
       - name: Build (ESM-only)
         run: pnpm exec turbo run build
+      - name: Typecheck examples
+        # examples/ is not a workspace package, so turbo does not see it; this
+        # type-checks the runnable examples against @baas/* source explicitly.
+        run: pnpm exec tsc -p examples/tsconfig.json
       - name: Capability matrix in sync with the adapters
         run: node scripts/capability-matrix.mjs --check
       - name: README quickstart in sync with the executed snippet

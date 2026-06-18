@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": "..",
+    "paths": {
+      "@baas/core": ["packages/core/src/index.ts"],
+      "@baas/adapter-memory": ["packages/adapter-memory/src/index.ts"],
+      "@baas/adapter-supabase": ["packages/adapter-supabase/src/index.ts"],
+      "@baas/adapter-convex": ["packages/adapter-convex/src/index.ts"]
+    }
+  },
+  "include": ["."]
+}
