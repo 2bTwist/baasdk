@@ -27,7 +27,12 @@ export default tseslint.config(
     extends: [tseslint.configs.strictTypeChecked],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        // The root tsconfig carries the @baas/* path map, so cross-package types
+        // resolve to SOURCE. That keeps typed lint independent of a prior build
+        // (the lint-types CI job has no dist), matching how tests and the editor
+        // resolve. projectService would pick per-package tsconfigs that resolve
+        // @baas/* to dist, which only exists after a build.
+        project: ["./tsconfig.json"],
         tsconfigRootDir: import.meta.dirname,
       },
     },
