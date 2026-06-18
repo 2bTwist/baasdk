@@ -20,7 +20,9 @@
     "size": "size-limit",
     "docs:capabilities": "node scripts/capability-matrix.mjs",
     "docs:quickstart": "node scripts/quickstart-snippet.mjs",
-    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && pnpm lint:types && turbo run typecheck build && pnpm typecheck:examples && node scripts/capability-matrix.mjs --check && node scripts/quickstart-snippet.mjs --check && vitest run",
+    "docs:api": "typedoc",
+    "docs:api:check": "typedoc --emit none",
+    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && pnpm lint:types && turbo run typecheck build && pnpm typecheck:examples && node scripts/capability-matrix.mjs --check && node scripts/quickstart-snippet.mjs --check && pnpm docs:api:check && vitest run",
     "release": "changeset publish",
     "lint:publish": "pnpm -r run lint:publish"
   },
@@ -41,6 +43,7 @@
     "publint": "^0.3.21",
     "size-limit": "^12.1.0",
     "turbo": "^2",
+    "typedoc": "^0.28.19",
     "typescript": "^5.7",
     "typescript-eslint": "^8.61.1",
     "vitest": "^3"
