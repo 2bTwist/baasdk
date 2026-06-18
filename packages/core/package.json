@@ -2,6 +2,18 @@
   "name": "@baas/core",
   "version": "0.0.0",
   "description": "Port layer for the universal Backend-as-a-Service SDK. Interfaces and types only, no implementation.",
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "ports-and-adapters",
+    "typescript",
+    "esm",
+    "abstraction",
+    "adapter-pattern",
+    "capabilities",
+    "document-store",
+    "contract"
+  ],
   "type": "module",
   "license": "MIT",
   "repository": {

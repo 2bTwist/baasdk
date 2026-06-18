@@ -2,6 +2,17 @@
   "name": "@baas/conformance",
   "version": "0.0.0",
   "description": "One contract suite, parameterized by a Backend constructor. The executable specification every adapter must pass.",
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "ports-and-adapters",
+    "typescript",
+    "esm",
+    "conformance",
+    "contract-testing",
+    "test-suite",
+    "vitest"
+  ],
   "type": "module",
   "license": "MIT",
   "repository": {

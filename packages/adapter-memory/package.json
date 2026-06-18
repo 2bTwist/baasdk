@@ -2,6 +2,17 @@
   "name": "@baas/adapter-memory",
   "version": "0.0.0",
   "description": "In-memory reference adapter. The executable spec and test fixture; passes the conformance suite 100% by definition.",
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "ports-and-adapters",
+    "typescript",
+    "esm",
+    "in-memory",
+    "reference-adapter",
+    "testing",
+    "document-store"
+  ],
   "type": "module",
   "license": "MIT",
   "repository": {

@@ -1,5 +1,10 @@
 # baasdk
 
+> One portable TypeScript contract over **Supabase**, **Convex**, and an
+> in-memory backend: document CRUD, auth, and file storage, with declared
+> capability flags and a typed `.native()` escape hatch. The same conformance
+> suite runs against every adapter, live in CI.
+
 A thin, honest abstraction over the **genuine common subset** of backend
 services (document/KV CRUD, auth, file storage), with explicit escape hatches
 for everything else. The abstraction is never richer than the intersection of
