@@ -80,6 +80,47 @@ jobs:
       - run: pnpm turbo run build
       - run: pnpm lint:publish
 
+  supabase-conformance:
+    # M3 keystone: run the @baas/adapter-supabase live conformance suite against a
+    # REAL Supabase stack on every commit, so "passes conformance" stops being a
+    # local-only claim. ubuntu-latest ships Docker; macOS runners would not work.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          # Pinned (not `latest`): reproducible, and a CLI release can't break the
+          # stack overnight. Matches the version the suite was validated against.
+          version: 2.107.0
+      - name: Start Supabase (Postgres + REST + Auth + Storage)
+        # --workdir: the project (config.toml + migrations) lives under the adapter,
+        # not the repo root. Migrations run on start (create todos/notes + bucket).
+        # Exclude unused services; logflare+vector (analytics) are the usual CI flake.
+        run: |
+          supabase start --workdir packages/adapter-supabase \
+            -x studio,imgproxy,realtime,edge-runtime,logflare,vector,supavisor,mailpit
+      - name: Export Supabase env
+        # `-o env` emits QUOTED values; strip the quotes before $GITHUB_ENV, and
+        # keep only the two the fixture reads (SUPABASE_URL/_SERVICE_ROLE_KEY).
+        run: |
+          supabase status --workdir packages/adapter-supabase -o env \
+            --override-name api.url=SUPABASE_URL \
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY \
+            | grep -E '^(SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY)=' \
+            | sed 's/"//g' >> "$GITHUB_ENV"
+      - name: Run live conformance
+        run: pnpm exec vitest run packages/adapter-supabase/test/conformance.test.ts
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --workdir packages/adapter-supabase
+
   dead-code:
     # knip: unused files, exports, and dependencies across the workspace. Keeps
     # the monorepo from accreting cruft as it grows. No build needed.
@@ -133,15 +174,16 @@ jobs:
     # The single status branch protection requires. Stays stable as Phases 2-4
     # add more jobs to `needs`.
     if: always()
-    needs: [verify, boundaries, lint-types, publish-guard, dead-code, size, changeset-check]
+    needs:
+      [verify, boundaries, lint-types, publish-guard, supabase-conformance, dead-code, size, changeset-check]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks to pass
         run: |
-          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} lint-types=${{ needs.lint-types.result }} publish-guard=${{ needs.publish-guard.result }} dead-code=${{ needs.dead-code.result }} size=${{ needs.size.result }} changeset-check=${{ needs.changeset-check.result }}"
+          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} lint-types=${{ needs.lint-types.result }} publish-guard=${{ needs.publish-guard.result }} supabase-conformance=${{ needs.supabase-conformance.result }} dead-code=${{ needs.dead-code.result }} size=${{ needs.size.result }} changeset-check=${{ needs.changeset-check.result }}"
           # These must SUCCEED (never skipped). changeset-check is legitimately
           # skipped on push to main.
-          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}" "lint-types:${{ needs.lint-types.result }}" "publish-guard:${{ needs.publish-guard.result }}" "dead-code:${{ needs.dead-code.result }}" "size:${{ needs.size.result }}"; do
+          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}" "lint-types:${{ needs.lint-types.result }}" "publish-guard:${{ needs.publish-guard.result }}" "supabase-conformance:${{ needs.supabase-conformance.result }}" "dead-code:${{ needs.dead-code.result }}" "size:${{ needs.size.result }}"; do
             if [ "${job#*:}" != "success" ]; then
               echo "::error::${job%%:*} did not pass"
               exit 1
