@@ -7,8 +7,9 @@
       "@baas/core": ["packages/core/src/index.ts"],
       "@baas/conformance": ["packages/conformance/src/index.ts"],
       "@baas/adapter-memory": ["packages/adapter-memory/src/index.ts"],
-      "@baas/adapter-supabase": ["packages/adapter-supabase/src/index.ts"]
+      "@baas/adapter-supabase": ["packages/adapter-supabase/src/index.ts"],
+      "@baas/adapter-convex/convex": ["packages/adapter-convex/convex/index.ts"]
     }
   },
-  "include": ["packages/*/src", "packages/*/test", "vitest.config.ts"]
+  "include": ["packages/*/src", "packages/*/test", "packages/*/convex", "vitest.config.ts"]
 }
