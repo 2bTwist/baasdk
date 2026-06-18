@@ -37,6 +37,10 @@ jobs:
         run: node scripts/capability-matrix.mjs --check
       - name: README quickstart in sync with the executed snippet
         run: node scripts/quickstart-snippet.mjs --check
+      - name: API reference builds cleanly (TypeDoc)
+        # Validate only (no output): fails on broken @links or types that leak
+        # out of the documented surface. treatWarningsAsErrors is set in typedoc.json.
+        run: pnpm exec typedoc --emit none
       - name: Test
         # The live Supabase conformance suite self-skips here: no Docker /
         # SUPABASE_URL on the runner. It runs locally against `supabase start`.

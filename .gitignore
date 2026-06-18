@@ -5,6 +5,10 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 
+# Generated TypeDoc API reference. Built on demand with `pnpm docs:api` and
+# validated in CI (`typedoc --emit none`); the HTML output is not committed.
+docs/api/
+
 # Local planning/research docs (groundwork/plan output). Kept out of the public
 # repo: they reference cross-project and personal working-style notes.
 specs/

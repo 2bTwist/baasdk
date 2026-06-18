@@ -157,7 +157,12 @@ pnpm test        # vitest: runtime conformance + type-level (.test-d.ts) tests
 pnpm typecheck   # tsc --noEmit per package (turbo)
 pnpm build       # tsup, ESM-only (.js + .d.ts) per package (turbo)
 pnpm lint        # biome
+pnpm docs:api    # TypeDoc API reference -> docs/api/ (gitignored; open index.html)
 ```
+
+The API reference is generated from the `isolatedDeclarations`-enforced public
+surface. It is not committed; CI validates that it builds cleanly (broken links
+or types leaking out of the documented surface fail the build).
 
 ### How the suite runs against an adapter
 

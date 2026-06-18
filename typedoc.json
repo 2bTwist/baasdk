@@ -1,0 +1,23 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "baasdk API reference",
+  "entryPoints": [
+    "packages/core/src/index.ts",
+    "packages/adapter-memory/src/index.ts",
+    "packages/adapter-supabase/src/index.ts",
+    "packages/adapter-convex/src/index.ts"
+  ],
+  "tsconfig": "tsconfig.json",
+  "out": "docs/api",
+  "readme": "none",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "treatWarningsAsErrors": true,
+  "validation": {
+    "notExported": true,
+    "invalidLink": true,
+    "rewrittenLink": true,
+    "notDocumented": false
+  }
+}
