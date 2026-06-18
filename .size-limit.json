@@ -1,0 +1,7 @@
+[
+  {
+    "name": "@baas/core (ESM, min+gzip)",
+    "path": "packages/core/dist/index.js",
+    "limit": "1 kB"
+  }
+]
