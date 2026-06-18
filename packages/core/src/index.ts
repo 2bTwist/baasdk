@@ -105,6 +105,24 @@ export interface Capabilities {
   readonly fileStorage: boolean;
 }
 
+/**
+ * The runtime list of every `Capabilities` key. The conformance suite's
+ * type-level test asserts this is EXHAUSTIVE against the interface and free of
+ * typos (exact `toEqualTypeOf` in both directions), so it is a trustworthy
+ * source of truth for iterating capabilities, e.g. to guard against a newly
+ * added flag silently going untested. (`as const` keeps the literal-tuple type
+ * that check relies on; an explicit `satisfies` would break isolatedDeclarations.)
+ */
+export const CAPABILITY_KEYS = [
+  "multiDocumentTransactions",
+  "reactiveQueries",
+  "serverSideJoins",
+  "aggregations",
+  "efficientFilterRequiresIndex",
+  "managesCredentials",
+  "fileStorage",
+] as const;
+
 // ---------------------------------------------------------------------------
 // Subscriptions
 // ---------------------------------------------------------------------------
