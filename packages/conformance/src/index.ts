@@ -339,6 +339,12 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         await flush();
         expect(states.length).toBeGreaterThanOrEqual(2);
 
+        // A second signup with the same email is a conflict, never a silent
+        // success. (Supabase hides this behind enumeration protection; the
+        // adapter must still surface it as conflict.)
+        const dupe = await auth.signUp("a@example.com", password);
+        expect(dupe).toMatchObject({ ok: false, error: { code: "conflict" } });
+
         expectOk(await auth.signOut());
         expect(expectOk(await auth.getIdentity())).toBeNull();
 

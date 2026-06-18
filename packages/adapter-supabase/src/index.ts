@@ -284,10 +284,20 @@ class SupabaseAuth implements AuthProvider, CredentialAuth {
   async signUp(email: string, password: string): Promise<Result<Session | null>> {
     const { data, error } = await this.sb.auth.signUp({ email, password });
     if (error) {
-      const code: ErrorCode = /already|exists|registered/i.test(error.message)
-        ? "conflict"
-        : "validation";
+      // Map by the stable error code, not the human message (which is localized
+      // and version-dependent). `user_already_exists` is the duplicate-signup
+      // signal when email confirmation is OFF (observed: HTTP 422).
+      const code: ErrorCode =
+        (error as { code?: string }).code === "user_already_exists" ? "conflict" : "validation";
       return err({ code, message: error.message, cause: error });
+    }
+    // With email confirmation ON, Supabase hides a duplicate signup behind an
+    // obfuscated success to prevent user enumeration: a user with an EMPTY
+    // identities array and no session, and no error. Surface that as a conflict
+    // rather than a misleading ok(null). A genuine confirmation-pending signup
+    // has exactly one identity, so it is not misclassified here.
+    if (data.user && data.user.identities?.length === 0 && !data.session) {
+      return err({ code: "conflict", message: "user already registered" });
     }
     return ok(data.session ? this.mapSession(data.session) : null);
   }
