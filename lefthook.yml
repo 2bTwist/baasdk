@@ -1,5 +1,7 @@
-# Commit-level strict gate. The same bar as CI, run locally before the push.
-# Phases 2-3 add their boundary and type-aware-lint checks here as they land.
+# Commit-level gate: the FAST half of CI run locally before the push (format,
+# typecheck, boundaries, type-aware lint). The slower CI-only jobs (vitest incl.
+# the API-surface snapshot, and publint/attw) are not run here to keep commits
+# quick; CI is the source of truth for those.
 # Not parallel: biome --write rewrites staged files, so it must finish before
 # typecheck reads them (no concurrent write/read race).
 pre-commit:

@@ -1,0 +1,45 @@
+import { StoreSchema, AnySchema, Capabilities, Backend, Adapter } from '@baas/core';
+import { SupabaseClient } from '@supabase/supabase-js';
+
+/**
+ * `@baas/adapter-supabase` — the first real adapter.
+ *
+ * Mapping to `@baas/core`:
+ *  - DocumentStore: direct CRUD → PostgREST (`from(table).select/insert/update/
+ *    delete`). Named operations (`run`/`mutate`) are app-supplied functions over
+ *    the Supabase client, mirroring the in-memory adapter's config model — a
+ *    portable calling convention with a per-backend implementation, since this
+ *    is where backends genuinely diverge.
+ *  - AuthProvider + CredentialAuth → Supabase Auth (it manages credentials, so
+ *    `managesCredentials: true` and the credential extension is present).
+ *  - FileStore → Supabase Storage (FileHandle encodes bucket + path).
+ *
+ * Declared capabilities encode Supabase's real divergences: no client-side
+ * transactions, Realtime is opt-in so the base adapter is one-shot,
+ * joins/aggregations available via native().
+ */
+
+type SupabaseQueryFn<Args, Res> = (sb: SupabaseClient, args: Args) => Promise<Res>;
+type SupabaseMutationFn<Args, Res> = (sb: SupabaseClient, args: Args) => Promise<Res>;
+interface SupabaseConfig<S extends StoreSchema = AnySchema> {
+    /** Provide a ready client, or `url` + `key` to construct one. */
+    readonly client?: SupabaseClient;
+    readonly url?: string;
+    readonly key?: string;
+    /** Primary-key column used by direct CRUD. Default `"id"`. */
+    readonly primaryKey?: string;
+    /** Default Storage bucket for the FileStore. */
+    readonly bucket?: string;
+    readonly queries: {
+        [K in keyof S["queries"]]: SupabaseQueryFn<S["queries"][K]["args"], S["queries"][K]["result"]>;
+    };
+    readonly mutations: {
+        [K in keyof S["mutations"]]: SupabaseMutationFn<S["mutations"][K]["args"], S["mutations"][K]["result"]>;
+    };
+    readonly capabilities?: Partial<Capabilities>;
+}
+declare function createSupabaseBackend<S extends StoreSchema = AnySchema>(config: SupabaseConfig<S>): Backend<S>;
+/** `Adapter`-typed entry point for symmetry with the other adapters. */
+declare const supabaseAdapter: Adapter<SupabaseConfig>;
+
+export { type SupabaseConfig, type SupabaseMutationFn, type SupabaseQueryFn, createSupabaseBackend, supabaseAdapter };

@@ -64,6 +64,22 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint:types
 
+  publish-guard:
+    # publint + attw on the packed tarballs of the published packages, so a
+    # broken exports map or type-resolution issue is caught before release.
+    # (The .d.ts public-surface snapshot runs in `verify`, which builds first.)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run build
+      - run: pnpm lint:publish
+
   changeset-check:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -88,15 +104,15 @@ jobs:
     # The single status branch protection requires. Stays stable as Phases 2-4
     # add more jobs to `needs`.
     if: always()
-    needs: [verify, boundaries, lint-types, changeset-check]
+    needs: [verify, boundaries, lint-types, publish-guard, changeset-check]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks to pass
         run: |
-          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} lint-types=${{ needs.lint-types.result }} changeset-check=${{ needs.changeset-check.result }}"
-          # verify + boundaries + lint-types must SUCCEED (never skipped).
-          # changeset-check is legitimately skipped on push to main.
-          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}" "lint-types:${{ needs.lint-types.result }}"; do
+          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} lint-types=${{ needs.lint-types.result }} publish-guard=${{ needs.publish-guard.result }} changeset-check=${{ needs.changeset-check.result }}"
+          # verify + boundaries + lint-types + publish-guard must SUCCEED (never
+          # skipped). changeset-check is legitimately skipped on push to main.
+          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}" "lint-types:${{ needs.lint-types.result }}" "publish-guard:${{ needs.publish-guard.result }}"; do
             if [ "${job#*:}" != "success" ]; then
               echo "::error::${job%%:*} did not pass"
               exit 1
