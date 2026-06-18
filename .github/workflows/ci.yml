@@ -49,6 +49,21 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint:boundaries
 
+  lint-types:
+    # Type-aware lint (typescript-eslint + the custom Result must-use rule).
+    # Kept separate because typed lint is ~build-time cost; the rest of the
+    # gate stays fast.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:types
+
   changeset-check:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -73,15 +88,15 @@ jobs:
     # The single status branch protection requires. Stays stable as Phases 2-4
     # add more jobs to `needs`.
     if: always()
-    needs: [verify, boundaries, changeset-check]
+    needs: [verify, boundaries, lint-types, changeset-check]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks to pass
         run: |
-          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} changeset-check=${{ needs.changeset-check.result }}"
-          # verify + boundaries must SUCCEED (never skipped). changeset-check is
-          # legitimately skipped on push to main, so success-or-skipped only there.
-          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}"; do
+          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} lint-types=${{ needs.lint-types.result }} changeset-check=${{ needs.changeset-check.result }}"
+          # verify + boundaries + lint-types must SUCCEED (never skipped).
+          # changeset-check is legitimately skipped on push to main.
+          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}" "lint-types:${{ needs.lint-types.result }}"; do
             if [ "${job#*:}" != "success" ]; then
               echo "::error::${job%%:*} did not pass"
               exit 1

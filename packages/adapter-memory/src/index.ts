@@ -276,7 +276,7 @@ class MemoryDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     value: Partial<T>,
   ): Promise<Result<void>> {
     try {
-      this.db.patch(collection, id, value as Record_);
+      this.db.patch(collection, id, value);
       this.db.notify();
       return ok(undefined);
     } catch (e) {
@@ -392,7 +392,7 @@ class MemoryAuth implements AuthProvider, CredentialAuth {
     return ok(undefined);
   }
 
-  native(): MemoryAuth {
+  native(): this {
     return this;
   }
 }
@@ -472,5 +472,4 @@ export function createMemoryBackend<S extends StoreSchema = AnySchema>(
 }
 
 /** `Adapter`-typed entry point for symmetry with real adapters. */
-export const memoryAdapter: Adapter<MemoryConfig<AnySchema>, AnySchema> = (config) =>
-  createMemoryBackend(config);
+export const memoryAdapter: Adapter<MemoryConfig> = (config) => createMemoryBackend(config);

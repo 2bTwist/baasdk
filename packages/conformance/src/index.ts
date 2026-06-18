@@ -45,7 +45,7 @@ export interface ConformanceSchema extends StoreSchema {
     readonly addTodo: { readonly args: { readonly title: string }; readonly result: DocumentId };
     /** Flip a todo's `done`. */
     // biome-ignore lint/suspicious/noConfusingVoidType: `void` is the intended "no result" type for a mutation that returns nothing.
-    readonly toggleTodo: { readonly args: { readonly id: DocumentId }; readonly result: void };
+    readonly toggleTodo: { readonly args: { readonly id: DocumentId }; readonly result: void }; // eslint-disable-line @typescript-eslint/no-invalid-void-type -- void models a mutation that returns no result.
     /**
      * Insert a todo and then throw. Used to probe transaction atomicity:
      * on a transactional backend the insert must be rolled back.
@@ -264,7 +264,7 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
 
         // Real auth providers enforce a minimum password length (Supabase: 6).
         const password = "conformance-pw-123";
-        const states: (unknown | null)[] = [];
+        const states: unknown[] = [];
         const unsub = auth.onAuthStateChange((s) => states.push(s));
 
         const session = expectOk(await auth.signUp("a@example.com", password));
@@ -300,7 +300,7 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
 
         const bytes = new TextEncoder().encode("file-contents");
         const handle = expectOk(
-          await backend.files.upload(bytes.buffer as ArrayBuffer, { contentType: "text/plain" }),
+          await backend.files.upload(bytes.buffer, { contentType: "text/plain" }),
         );
 
         const url = expectOk(await backend.files.getUrl(handle));

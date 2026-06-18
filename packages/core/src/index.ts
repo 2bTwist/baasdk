@@ -265,7 +265,7 @@ export interface CredentialAuth {
 }
 
 export const supportsCredentials = (auth: AuthProvider): auth is AuthProvider & CredentialAuth =>
-  auth.capabilities.managesCredentials === true &&
+  auth.capabilities.managesCredentials &&
   typeof (auth as Partial<CredentialAuth>).signInWithPassword === "function";
 
 // ---------------------------------------------------------------------------
