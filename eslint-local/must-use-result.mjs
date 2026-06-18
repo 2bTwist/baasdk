@@ -18,7 +18,18 @@ const createRule = ESLintUtils.RuleCreator(
   () => "https://github.com/2bTwist/baasdk#result-must-be-used",
 );
 
-/** True when `type` (or an awaited Promise of it) is our `Result` alias. */
+/**
+ * True when `type` is our `Result` alias.
+ *
+ * This matches the shapes our ports actually return: a direct `Result<T>`, or
+ * the awaited type of a `Promise<Result<T>>` (the `AwaitExpression` resolves to
+ * `Result<T>`). It deliberately does NOT chase exotic shapes like
+ * `Result<T> | X` or a locally re-aliased `type Foo = Result<T>`: TypeScript
+ * flattens `Result | X` into Result's own constituents and drops the alias, so
+ * there is no reliable "Result" symbol to find. Our operation signatures never
+ * produce those shapes, so the simple, correct check beats a branch that looks
+ * like it handles unions but cannot.
+ */
 function isResultType(type) {
   const symbol = type.aliasSymbol ?? type.getSymbol?.();
   return symbol?.getName() === "Result";

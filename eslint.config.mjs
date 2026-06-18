@@ -80,8 +80,10 @@ export default tseslint.config(
     },
   },
   {
-    // Tests exercise edge cases and intentionally bypass types.
-    files: ["**/*.test.ts", "**/*.test-d.ts", "**/test/**/*.ts"],
+    // Runtime tests and the reference fixtures tolerate provider `any`, but must
+    // STILL catch the real bugs the example code should never model: a forgotten
+    // `await` (floating promise) or a dropped Result.
+    files: ["**/*.test.ts", "**/test/**/*.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
@@ -90,8 +92,13 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-return": "off",
       "@typescript-eslint/no-unnecessary-condition": "off",
-      // Type-level assertions in *.test-d.ts are never executed at runtime, and
-      // reference methods unbound on purpose.
+    },
+  },
+  {
+    // Type-level assertions in *.test-d.ts are never executed at runtime and
+    // reference methods unbound on purpose.
+    files: ["**/*.test-d.ts"],
+    rules: {
       "@typescript-eslint/no-floating-promises": "off",
       "@typescript-eslint/unbound-method": "off",
       "baas-local/must-use-result": "off",
