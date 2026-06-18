@@ -17,7 +17,8 @@
     "format": "biome format --write .",
     "knip": "knip",
     "size": "size-limit",
-    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && pnpm lint:types && turbo run typecheck build && vitest run",
+    "docs:capabilities": "node scripts/capability-matrix.mjs",
+    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && pnpm lint:types && turbo run typecheck build && node scripts/capability-matrix.mjs --check && vitest run",
     "release": "changeset publish",
     "lint:publish": "pnpm -r run lint:publish"
   },

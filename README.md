@@ -8,8 +8,10 @@ through a typed `.native()` escape hatch rather than smuggled into the core.
 
 ## Status
 
-The contract and the in-memory reference adapter are in place, and the Supabase
-adapter passes the conformance suite against a live local stack. The genuinely
+The contract, the in-memory reference adapter, and **two structurally-different
+real adapters (Supabase and Convex)** all pass the same conformance suite. Both
+real adapters run their live conformance against a real backend **in CI on every
+commit**, so the portability claim is verified, not asserted. The genuinely
 portable surface is direct CRUD + auth + file storage + a uniform
 result/capability/subscribe shape; named-operation implementations are
 per-backend by design.
@@ -20,6 +22,10 @@ per-backend by design.
 | `@baas/adapter-memory` | in-memory reference adapter | ✅ |
 | `@baas/conformance` | one suite, parameterized by a constructor | ✅ |
 | `@baas/adapter-supabase` | Supabase (PostgREST / Auth / Storage) | ✅ |
+| `@baas/adapter-convex` | Convex (reactive, JWT-verify auth, storage) | ✅ |
+
+Every divergence between backends is a declared capability flag, asserted in both
+directions by the suite. See the generated **[capability matrix](docs/CAPABILITIES.md)**.
 
 ## Packages
 
@@ -34,6 +40,9 @@ per-backend by design.
   capability-aware and asserts **both** runtime and type behavior.
 - **`@baas/adapter-supabase`** — the first real adapter. See its README for
   running the suite against a local Supabase stack.
+- **`@baas/adapter-convex`**: the second real adapter, and the proof the
+  contract is not Supabase-shaped: reactive `subscribe`, JWT-verify-only auth,
+  and deployable server helpers for generic CRUD. See its README.
 
 ## Develop
 

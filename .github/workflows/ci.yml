@@ -29,6 +29,8 @@ jobs:
         run: pnpm exec turbo run typecheck
       - name: Build (ESM-only)
         run: pnpm exec turbo run build
+      - name: Capability matrix in sync with the adapters
+        run: node scripts/capability-matrix.mjs --check
       - name: Test
         # The live Supabase conformance suite self-skips here: no Docker /
         # SUPABASE_URL on the runner. It runs locally against `supabase start`.
