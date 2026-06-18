@@ -92,10 +92,11 @@ export default tseslint.config(
   },
   {
     // Deployable Convex helpers (the `./convex` entry) run against AnyDataModel
-    // in schemaless mode, so `ctx.db`/`ctx.storage` are typed `any` BY DESIGN —
-    // the unsafe-* family would fire on essentially every generic db call. The
-    // real bugs to keep catching are the same as for tests: a floating promise,
-    // a dropped Result, a deprecated API. So relax only the unsafe family here.
+    // in schemaless mode, so `ctx.db`/`ctx.storage` are typed `any` BY DESIGN,
+    // and the unsafe-* family would fire on essentially every generic db call.
+    // The real bugs to keep catching are the same as for tests: a floating
+    // promise, a dropped Result, a deprecated API. So relax ONLY the unsafe
+    // family, nothing else.
     files: ["packages/*/convex/**/*.ts"],
     rules: {
       "@typescript-eslint/no-unsafe-assignment": "off",
@@ -103,7 +104,6 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-call": "off",
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-return": "off",
-      "@typescript-eslint/no-unnecessary-condition": "off",
     },
   },
   {

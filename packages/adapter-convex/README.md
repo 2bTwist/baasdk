@@ -32,6 +32,26 @@ and upgrade through `pnpm`.
 | `whoami` | `ctx.auth.getUserIdentity()` | `AuthProvider.getIdentity` |
 | `generateUploadUrl` / `getFileUrl` / `deleteFile` | `ctx.storage.*` | `FileStore` |
 
+## Security: these are PUBLIC, generic functions
+
+Read this before deploying. Every helper is a **public** Convex function, so,
+exactly like any public function in a Convex app, it is callable by anyone who
+has the deployment URL. The difference from a normal app's functions is that
+these are **generic over any table**: a caller can `insert`/`patch`/`remove` rows
+in any collection and `deleteFile` any storage id. Convex *verifies* a caller's
+JWT but these helpers do not *authorize* the call, by design, since vanilla
+Convex's model is "the app owns authorization" (`managesCredentials: false`).
+
+So: **authorization is your responsibility.** If your app's data is not meant to
+be world-writable, gate these behind your own auth, do not re-export the ones you
+do not use, or wrap them. The adapter does not hide this (design principle: name
+the leaks you cannot close). An auth-gated variant (helpers that assert
+`ctx.auth.getUserIdentity()`, or that wrap an app-supplied authorization check)
+is a planned option, not yet shipped.
+
+There is deliberately no published reset/truncate helper for the same reason: a
+"delete every row" mutation must never reach the app surface.
+
 ## Capabilities (declared by the client adapter)
 
 `multiDocumentTransactions: true` (every mutation is a transaction),
