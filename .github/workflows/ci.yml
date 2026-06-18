@@ -121,6 +121,60 @@ jobs:
         if: always()
         run: supabase stop --workdir packages/adapter-supabase
 
+  convex-conformance:
+    # M3 part 2: run the @baas/adapter-convex live conformance suite against a
+    # self-hosted Convex backend in Docker, so reactivity, real auth wiring, and
+    # the file-upload dance are proven per-commit, not just locally.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Start self-hosted Convex backend
+        # Pinned by digest (the image tags are commit hashes, not semver) for
+        # reproducibility; this is the digest the suite was validated against.
+        # Origins point at localhost so generated upload URLs are reachable.
+        # The instance secret is generated per-run (no hardcoded credential): the
+        # admin key is read back from the container below, so it need not persist.
+        run: |
+          INSTANCE_SECRET="$(openssl rand -hex 32)"
+          docker run -d --name convex-backend \
+            -p 3210:3210 -p 3211:3211 \
+            -e INSTANCE_NAME="ci-convex" \
+            -e INSTANCE_SECRET="$INSTANCE_SECRET" \
+            -e CONVEX_CLOUD_ORIGIN="http://127.0.0.1:3210" \
+            -e CONVEX_SITE_ORIGIN="http://127.0.0.1:3211" \
+            -e DISABLE_BEACON="true" \
+            ghcr.io/get-convex/convex-backend@sha256:edd7959f3464ed661f6663f646db205d5d61bda606c969b074dfb3c69ed71463
+      - name: Wait for backend readiness
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3210/version >/dev/null 2>&1 && { echo "backend up"; exit 0; }
+            sleep 2
+          done
+          echo "backend did not become ready"; docker logs convex-backend; exit 1
+      - name: Deploy convex functions (test/convex via convex.json)
+        # Run from the package: the CLI finds convex.json here and resolves its
+        # `functions: test/convex/` relative to it (there is no --cwd flag). No
+        # CONVEX_DEPLOYMENT is set on a fresh checkout, which self-hosted requires.
+        working-directory: packages/adapter-convex
+        run: |
+          ADMIN_KEY="$(docker exec convex-backend ./generate_admin_key.sh | tr -d '\r' | tail -1)"
+          CONVEX_SELF_HOSTED_URL="http://127.0.0.1:3210" \
+          CONVEX_SELF_HOSTED_ADMIN_KEY="$ADMIN_KEY" \
+            pnpm exec convex deploy
+      - name: Run live conformance
+        env:
+          CONVEX_URL: http://127.0.0.1:3210
+        run: pnpm exec vitest run packages/adapter-convex/test/conformance.test.ts
+      - name: Teardown
+        if: always()
+        run: docker rm -f convex-backend || true
+
   dead-code:
     # knip: unused files, exports, and dependencies across the workspace. Keeps
     # the monorepo from accreting cruft as it grows. No build needed.
@@ -175,15 +229,15 @@ jobs:
     # add more jobs to `needs`.
     if: always()
     needs:
-      [verify, boundaries, lint-types, publish-guard, supabase-conformance, dead-code, size, changeset-check]
+      [verify, boundaries, lint-types, publish-guard, supabase-conformance, convex-conformance, dead-code, size, changeset-check]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks to pass
         run: |
-          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} lint-types=${{ needs.lint-types.result }} publish-guard=${{ needs.publish-guard.result }} supabase-conformance=${{ needs.supabase-conformance.result }} dead-code=${{ needs.dead-code.result }} size=${{ needs.size.result }} changeset-check=${{ needs.changeset-check.result }}"
+          echo "verify=${{ needs.verify.result }} boundaries=${{ needs.boundaries.result }} lint-types=${{ needs.lint-types.result }} publish-guard=${{ needs.publish-guard.result }} supabase-conformance=${{ needs.supabase-conformance.result }} convex-conformance=${{ needs.convex-conformance.result }} dead-code=${{ needs.dead-code.result }} size=${{ needs.size.result }} changeset-check=${{ needs.changeset-check.result }}"
           # These must SUCCEED (never skipped). changeset-check is legitimately
           # skipped on push to main.
-          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}" "lint-types:${{ needs.lint-types.result }}" "publish-guard:${{ needs.publish-guard.result }}" "supabase-conformance:${{ needs.supabase-conformance.result }}" "dead-code:${{ needs.dead-code.result }}" "size:${{ needs.size.result }}"; do
+          for job in "verify:${{ needs.verify.result }}" "boundaries:${{ needs.boundaries.result }}" "lint-types:${{ needs.lint-types.result }}" "publish-guard:${{ needs.publish-guard.result }}" "supabase-conformance:${{ needs.supabase-conformance.result }}" "convex-conformance:${{ needs.convex-conformance.result }}" "dead-code:${{ needs.dead-code.result }}" "size:${{ needs.size.result }}"; do
             if [ "${job#*:}" != "success" ]; then
               echo "::error::${job%%:*} did not pass"
               exit 1

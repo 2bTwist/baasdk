@@ -66,5 +66,14 @@ The deployable helpers are proven hermetically with
 [`convex-test`](https://www.npmjs.com/package/convex-test) (no login, no
 deployment) against the test app in `test/convex/`. Live conformance (the only
 way to cover reactivity, real auth wiring, and the upload HTTP dance) runs
-against a real deployment and self-skips when `CONVEX_URL` is absent, added with
-the client adapter.
+against a real deployment and self-skips when `CONVEX_URL` is absent.
+
+Locally, `npx convex dev` (in this package) starts a local backend and writes
+`CONVEX_URL` to `.env.local`; then `CONVEX_URL=http://127.0.0.1:3210 pnpm vitest
+run packages/adapter-convex` runs it.
+
+**CI runs this on every commit.** The `convex-conformance` job boots a
+[self-hosted Convex backend](https://github.com/get-convex/convex-backend) in
+Docker (SQLite, no login), `convex deploy`s `test/convex/`, and runs the live
+suite, so reactivity + auth + the upload dance are proven per-commit against a
+real backend.
