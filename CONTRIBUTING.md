@@ -70,8 +70,8 @@ API surface snapshot is unchanged or its update is reviewed.
 
 ## Adding an adapter
 
-An adapter is its own package that implements the `Backend` ports from
-`@baas/core` and passes the conformance suite. The shape:
+Full walkthrough: **[docs/WRITING-AN-ADAPTER.md](docs/WRITING-AN-ADAPTER.md)**.
+The shape, in brief:
 
 1. Implement `DocumentStore`, `AuthProvider`, `FileStore`, and a `Backend`
    factory. Declare honest `Capabilities`. Expose `.native()` on each port.

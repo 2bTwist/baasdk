@@ -129,7 +129,8 @@ The suite fixes a canonical `ConformanceSchema` (a tiny "todos" surface). An
 adapter author supplies a constructor that wires that schema to their backend;
 the suite then runs unchanged. The in-memory wiring lives in
 `packages/adapter-memory/test/conformance.test.ts` and is the template a real
-adapter follows.
+adapter follows. To add a backend, see
+**[Writing an adapter](docs/WRITING-AN-ADAPTER.md)**.
 
 ### Cross-package resolution
 
