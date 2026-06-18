@@ -61,9 +61,7 @@ export interface ConformanceSchema extends StoreSchema {
  * Firebase) resets persistent state here, which the in-memory adapter never
  * needed. Stateless adapters can still return synchronously.
  */
-export type MakeBackend = () =>
-  | Backend<ConformanceSchema>
-  | Promise<Backend<ConformanceSchema>>;
+export type MakeBackend = () => Backend<ConformanceSchema> | Promise<Backend<ConformanceSchema>>;
 
 // ---------------------------------------------------------------------------
 // Helpers

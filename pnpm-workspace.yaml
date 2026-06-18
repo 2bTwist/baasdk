@@ -1,11 +1,15 @@
 packages:
   - "packages/*"
 
-# Global ignore-scripts=true (npm/pnpm) is on for supply-chain hardening.
-# These dev-tool binaries genuinely need their install scripts to fetch
-# platform binaries, so they are explicitly approved here. esbuild ships its
-# binary via the @esbuild/<platform> optional dependency, so it works even when
-# its own postinstall is skipped.
-onlyBuiltDependencies:
-  - "@biomejs/biome"
-  - turbo
+# Build-script decisions. Global ignore-scripts=true is on for supply-chain
+# hardening; these are the explicit per-dependency decisions pnpm requires.
+# biome + turbo need their postinstall to fetch platform binaries (approved).
+# esbuild ships its binary via @esbuild/<platform>, so its postinstall is not
+# needed (declined, not run).
+allowBuilds:
+  "@biomejs/biome": true
+  turbo: true
+  esbuild: false
+  # lefthook's binary resolves via its platform package; its postinstall only
+  # runs `lefthook install`, which we run explicitly after writing lefthook.yml.
+  lefthook: false

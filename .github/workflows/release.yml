@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write # npm provenance
+
+concurrency: release-${{ github.ref }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec turbo run build
+      # With pending changesets, this opens/updates a "Version Packages" PR (no
+      # npm auth needed). It only PUBLISHES once that PR merges and the changesets
+      # are consumed, at which point NODE_AUTH_TOKEN (npm trusted-publishing or
+      # an NPM_TOKEN secret) must be configured. Provenance is on via id-token.
+      - name: Create release PR or publish
+        uses: changesets/action@v1
+        with:
+          version: pnpm exec changeset version
+          publish: pnpm release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
+          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}  # set before first publish

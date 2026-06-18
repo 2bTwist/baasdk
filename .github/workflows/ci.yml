@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint (zero warnings, Definition of Done)
+        run: pnpm exec biome ci --error-on-warnings .
+      - name: Typecheck
+        run: pnpm exec turbo run typecheck
+      - name: Build (ESM-only)
+        run: pnpm exec turbo run build
+      - name: Test
+        # The live Supabase conformance suite self-skips here: no Docker /
+        # SUPABASE_URL on the runner. It runs locally against `supabase start`.
+        run: pnpm exec vitest run
+
+  changeset-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Require a changeset for publishable package src changes
+        run: |
+          # fetch-depth:0 above already has full history incl. origin/<base>;
+          # a shallow re-fetch would truncate it and break the merge-base diff.
+          changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          # Publishable packages only. @baas/conformance is ignored by changesets.
+          if echo "$changed" | grep -Eq '^packages/(core|adapter-[^/]+)/src/'; then
+            if ! echo "$changed" | grep -E '^\.changeset/[^/]+\.md$' | grep -qiv 'readme'; then
+              echo "::error::A publishable package's src/ changed but no changeset was added. Run 'pnpm changeset'."
+              exit 1
+            fi
+          fi
+
+  all-green:
+    # The single status branch protection requires. Stays stable as Phases 2-4
+    # add more jobs to `needs`.
+    if: always()
+    needs: [verify, changeset-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all checks to pass
+        run: |
+          echo "verify=${{ needs.verify.result }} changeset-check=${{ needs.changeset-check.result }}"
+          # verify must SUCCEED (never skipped). changeset-check is legitimately
+          # skipped on push to main, so success-or-skipped is allowed only for it.
+          if [ "${{ needs.verify.result }}" != "success" ]; then
+            echo "::error::verify did not pass"
+            exit 1
+          fi
+          if [ "${{ needs.changeset-check.result }}" != "success" ] && [ "${{ needs.changeset-check.result }}" != "skipped" ]; then
+            echo "::error::changeset-check did not pass"
+            exit 1
+          fi
