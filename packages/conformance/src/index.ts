@@ -171,6 +171,38 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         );
         expect(bad).toMatchObject({ ok: false });
       });
+
+      it("mutate() also returns an error Result (never throws) for an unknown operation", async () => {
+        const bad = await (
+          backend.store.mutate as (op: string, args: unknown) => Promise<{ ok: boolean }>
+        )("doesNotExist", {});
+        expect(bad).toMatchObject({ ok: false });
+      });
+
+      it("patch / remove of a no-longer-existing id resolve to a Result, never throw", async () => {
+        // Use a VALID id that no longer resolves (never fabricate an opaque id):
+        // create one, remove it, then patch/remove again. Adapters legitimately
+        // diverge on the code here (some no-op to ok, some report not_found), so
+        // the portable contract is only "a Result comes back; nothing throws".
+        const id = expectOk(await backend.store.insert("notes", { body: "temp", pinned: false }));
+        expectOk(await backend.store.remove("notes", id));
+
+        const patched = await backend.store.patch("notes", id, { pinned: true });
+        expect(typeof patched.ok).toBe("boolean");
+
+        const removed = await backend.store.remove("notes", id);
+        expect(typeof removed.ok).toBe("boolean");
+      });
+
+      it("round-trips a unicode / special-character payload intact", async () => {
+        // Emoji, accents, CJK, RTL, a combining mark, astral-plane chars, and
+        // whitespace. (No NUL byte: Postgres text rejects it, so it is not part
+        // of the portable contract.)
+        const body = "🎉 cafe naïve 日本語 العربية 𝔘𝔫𝔦 é \t end";
+        const id = expectOk(await backend.store.insert("notes", { body, pinned: false }));
+        const fetched = expectOk(await backend.store.get<{ body: string }>("notes", id));
+        expect(fetched?.body).toBe(body);
+      });
     });
 
     // -- subscribe(): one-shot always, live updates capability-gated -------
@@ -215,6 +247,32 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         expectOk(await backend.store.mutate("addTodo", { title: "after unsub" }));
         await flush();
         expect(results).toHaveLength(countAtUnsub);
+      });
+
+      it("unsubscribing synchronously (before initial delivery) yields no extra delivery", async () => {
+        const results: unknown[] = [];
+        const unsub = backend.store.subscribe("listTodos", {}, (r) => results.push(r));
+        unsub(); // tear down before the guaranteed initial delivery has settled
+
+        expectOk(await backend.store.mutate("addTodo", { title: "after sync unsub" }));
+        await flush();
+        // The one guaranteed initial delivery may still land; the mutation must
+        // never produce an additional one. So: at most one, ever.
+        expect(results.length).toBeLessThanOrEqual(1);
+      });
+
+      it("delivers an error Result (never throws) when the operation is unknown", async () => {
+        const received: Array<{ ok: boolean }> = [];
+        const unsub = (
+          backend.store.subscribe as (
+            op: string,
+            args: unknown,
+            onChange: (r: { ok: boolean }) => void,
+          ) => () => void
+        )("doesNotExist", {}, (r) => received.push(r));
+        await waitFor(() => received.length >= 1);
+        expect(received[0]).toMatchObject({ ok: false });
+        unsub();
       });
     });
 
