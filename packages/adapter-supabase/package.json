@@ -4,6 +4,13 @@
   "description": "Supabase adapter: PostgREST document store, Supabase Auth (credential management), and Supabase Storage, behind the @baas/core ports.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2bTwist/baasdk.git",
+    "directory": "packages/adapter-supabase"
+  },
+  "homepage": "https://github.com/2bTwist/baasdk/tree/main/packages/adapter-supabase#readme",
+  "bugs": "https://github.com/2bTwist/baasdk/issues",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

@@ -4,6 +4,13 @@
   "description": "One contract suite, parameterized by a Backend constructor. The executable specification every adapter must pass.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2bTwist/baasdk.git",
+    "directory": "packages/conformance"
+  },
+  "homepage": "https://github.com/2bTwist/baasdk/tree/main/packages/conformance#readme",
+  "bugs": "https://github.com/2bTwist/baasdk/issues",
   "exports": {
     ".": {
       "types": "./src/index.ts",

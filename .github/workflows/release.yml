@@ -23,11 +23,16 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
+      # Trusted publishing (OIDC) needs npm >= 11.5.1; Node 22's bundled npm is
+      # older. No long-lived NPM_TOKEN: npm detects the OIDC environment (the
+      # id-token permission above) and authenticates without one. See RELEASING.md
+      # for the one-time per-package trusted-publisher setup on npmjs.com.
+      - run: npm install -g npm@latest
       - run: pnpm exec turbo run build
       # With pending changesets, this opens/updates a "Version Packages" PR (no
-      # npm auth needed). It only PUBLISHES once that PR merges and the changesets
-      # are consumed, at which point NODE_AUTH_TOKEN (npm trusted-publishing or
-      # an NPM_TOKEN secret) must be configured. Provenance is on via id-token.
+      # publish, no auth). It PUBLISHES only once that PR merges and the changesets
+      # are consumed, via OIDC trusted publishing. Provenance is on (id-token +
+      # NPM_CONFIG_PROVENANCE), and proves ORIGIN, not safety.
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
@@ -36,4 +41,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
-          # NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}  # set before first publish

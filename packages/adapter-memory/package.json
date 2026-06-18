@@ -4,6 +4,13 @@
   "description": "In-memory reference adapter. The executable spec and test fixture; passes the conformance suite 100% by definition.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2bTwist/baasdk.git",
+    "directory": "packages/adapter-memory"
+  },
+  "homepage": "https://github.com/2bTwist/baasdk/tree/main/packages/adapter-memory#readme",
+  "bugs": "https://github.com/2bTwist/baasdk/issues",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

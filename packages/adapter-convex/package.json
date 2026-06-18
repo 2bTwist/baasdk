@@ -1,9 +1,16 @@
 {
   "name": "@baas/adapter-convex",
   "version": "0.0.0",
-  "description": "Convex adapter for @baas/core: deployable schemaless CRUD, storage, and auth helpers behind the ports (the ./convex entry). Client adapter in progress.",
+  "description": "Convex adapter for @baas/core: reactive document store, JWT-verify auth, file storage, and deployable schemaless CRUD helpers (the ./convex entry), behind the ports.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2bTwist/baasdk.git",
+    "directory": "packages/adapter-convex"
+  },
+  "homepage": "https://github.com/2bTwist/baasdk/tree/main/packages/adapter-convex#readme",
+  "bugs": "https://github.com/2bTwist/baasdk/issues",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

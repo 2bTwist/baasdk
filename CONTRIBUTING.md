@@ -64,6 +64,9 @@ These are real conventions but not machine-checked; reviewers hold the line:
    are blocked.
 4. Changes are reviewed before merge. Squash-merge.
 
+How a merged changeset becomes a published release (and the npm trusted-publishing
+setup) is documented in **[RELEASING.md](RELEASING.md)**.
+
 The Definition of Done for any change: `pnpm verify` is green (Biome with zero
 warnings, boundaries, type-aware lint, typecheck, build, tests), and the public
 API surface snapshot is unchanged or its update is reviewed.
