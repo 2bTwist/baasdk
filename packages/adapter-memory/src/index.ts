@@ -124,9 +124,10 @@ class Database implements MemoryContext {
   }
 
   remove(collection: string, id: DocumentId): void {
-    const c = this.collections.get(collection);
-    if (!c?.has(id)) throw new MemoryError("not_found", `no document ${id} in "${collection}"`);
-    c.delete(id);
+    // Idempotent by contract: removing an id that is already absent reaches the
+    // same desired end state, so it succeeds rather than erroring. (patch, by
+    // contrast, requires an existing document and reports not_found.)
+    this.collections.get(collection)?.delete(id);
   }
 
   notify(): void {

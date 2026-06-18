@@ -179,19 +179,22 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         expect(bad).toMatchObject({ ok: false });
       });
 
-      it("patch / remove of a no-longer-existing id resolve to a Result, never throw", async () => {
+      it("remove() of a non-existent id is idempotent (returns ok)", async () => {
         // Use a VALID id that no longer resolves (never fabricate an opaque id):
-        // create one, remove it, then patch/remove again. Adapters legitimately
-        // diverge on the code here (some no-op to ok, some report not_found), so
-        // the portable contract is only "a Result comes back; nothing throws".
+        // create one, remove it, then remove again. remove() reaches a desired end
+        // state, so a redundant remove succeeds rather than erroring.
         const id = expectOk(await backend.store.insert("notes", { body: "temp", pinned: false }));
         expectOk(await backend.store.remove("notes", id));
+        expectOk(await backend.store.remove("notes", id)); // idempotent: still ok
+      });
 
+      it("patch() of a non-existent id returns err(not_found)", async () => {
+        // patch() requires an existing target; the portable contract is not_found,
+        // not a silent no-op. (A valid-but-removed id, never a fabricated one.)
+        const id = expectOk(await backend.store.insert("notes", { body: "temp", pinned: false }));
+        expectOk(await backend.store.remove("notes", id));
         const patched = await backend.store.patch("notes", id, { pinned: true });
-        expect(typeof patched.ok).toBe("boolean");
-
-        const removed = await backend.store.remove("notes", id);
-        expect(typeof removed.ok).toBe("boolean");
+        expect(patched).toMatchObject({ ok: false, error: { code: "not_found" } });
       });
 
       it("round-trips a unicode / special-character payload intact", async () => {
