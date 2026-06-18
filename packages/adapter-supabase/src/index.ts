@@ -41,7 +41,7 @@ import {
   type Unsubscribe,
   type UploadOptions,
 } from "@baas/core";
-import type { SupabaseClient, Session as SupabaseSession } from "@supabase/supabase-js";
+import type { Provider, SupabaseClient, Session as SupabaseSession } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
@@ -163,6 +163,7 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
   }
 
   async get<T = unknown>(collection: string, id: DocumentId): Promise<Result<T | null>> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- the untyped Supabase client returns `any` rows; the row shape is the caller's `T`.
     const { data, error } = await this.sb
       .from(collection)
       .select("*")
@@ -236,7 +237,7 @@ class SupabaseAuth implements AuthProvider, CredentialAuth {
     const identity: Identity = {
       subject: s.user.id,
       ...(s.user.email ? { email: s.user.email } : {}),
-      claims: (s.user.user_metadata ?? {}) as Record<string, unknown>,
+      claims: s.user.user_metadata ?? {},
     };
     return {
       identity,
@@ -252,7 +253,7 @@ class SupabaseAuth implements AuthProvider, CredentialAuth {
     return ok({
       subject: user.id,
       ...(user.email ? { email: user.email } : {}),
-      claims: (user.user_metadata ?? {}) as Record<string, unknown>,
+      claims: user.user_metadata ?? {},
     });
   }
 
@@ -267,7 +268,9 @@ class SupabaseAuth implements AuthProvider, CredentialAuth {
     const { data } = this.sb.auth.onAuthStateChange((_event, session) => {
       callback(session ? this.mapSession(session) : null);
     });
-    return () => data.subscription.unsubscribe();
+    return () => {
+      data.subscription.unsubscribe();
+    };
   }
 
   async signUp(email: string, password: string): Promise<Result<Session | null>> {
@@ -295,8 +298,8 @@ class SupabaseAuth implements AuthProvider, CredentialAuth {
 
   async signInWithOAuth(provider: string, options?: OAuthOptions): Promise<Result<OAuthResult>> {
     const { data, error } = await this.sb.auth.signInWithOAuth({
-      // biome-ignore lint/suspicious/noExplicitAny: provider is an open string at the port
-      provider: provider as any,
+      // The port accepts an open provider string; Supabase types it as a union.
+      provider: provider as Provider,
       options: {
         ...(options?.redirectTo ? { redirectTo: options.redirectTo } : {}),
         ...(options?.scopes ? { scopes: options.scopes.join(" ") } : {}),
@@ -403,6 +406,7 @@ function resolveClient(config: SupabaseConfig<StoreSchema>): SupabaseClient {
   if (!config.url || !config.key) {
     throw new Error("SupabaseConfig requires either `client`, or both `url` and `key`.");
   }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return -- createClient's default generics differ from the bare SupabaseClient alias; this is supabase-js's own typing.
   return createClient(config.url, config.key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
@@ -411,7 +415,7 @@ function resolveClient(config: SupabaseConfig<StoreSchema>): SupabaseClient {
 export function createSupabaseBackend<S extends StoreSchema = AnySchema>(
   config: SupabaseConfig<S>,
 ): Backend<S> {
-  const sb = resolveClient(config as SupabaseConfig<StoreSchema>);
+  const sb = resolveClient(config);
   const capabilities: Capabilities = { ...SUPABASE_CAPABILITIES, ...config.capabilities };
   const pk = config.primaryKey ?? "id";
   const bucket = config.bucket ?? "conformance";
@@ -424,5 +428,4 @@ export function createSupabaseBackend<S extends StoreSchema = AnySchema>(
 }
 
 /** `Adapter`-typed entry point for symmetry with the other adapters. */
-export const supabaseAdapter: Adapter<SupabaseConfig<AnySchema>, AnySchema> = (config) =>
-  createSupabaseBackend(config);
+export const supabaseAdapter: Adapter<SupabaseConfig> = (config) => createSupabaseBackend(config);

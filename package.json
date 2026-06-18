@@ -12,20 +12,26 @@
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:boundaries": "depcruise packages --config .dependency-cruiser.cjs",
+    "lint:types": "eslint packages --max-warnings=0",
     "metrics": "depcruise packages --config .dependency-cruiser.cjs --output-type metrics",
     "format": "biome format --write .",
-    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && turbo run typecheck build && vitest run",
+    "verify": "biome ci --error-on-warnings . && pnpm lint:boundaries && pnpm lint:types && turbo run typecheck build && vitest run",
     "release": "changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "^2",
     "@changesets/cli": "^2",
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.7.2",
     "@types/node": "^25.9.3",
+    "@typescript-eslint/utils": "^8.61.1",
     "dependency-cruiser": "^17.4.3",
+    "eslint": "^9.39.4",
+    "eslint-plugin-functional": "^10.0.0",
     "lefthook": "^2.1.9",
     "tsup": "^8",
     "turbo": "^2",
     "typescript": "^5.7",
+    "typescript-eslint": "^8.61.1",
     "vitest": "^3"
   }
 }

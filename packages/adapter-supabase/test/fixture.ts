@@ -9,7 +9,7 @@
  */
 
 import { createSupabaseBackend } from "@baas/adapter-supabase";
-import type { ConformanceSchema, Todo } from "@baas/conformance";
+import type { ConformanceSchema } from "@baas/conformance";
 import type { Backend, DocumentId } from "@baas/core";
 import { createClient } from "@supabase/supabase-js";
 
@@ -41,16 +41,12 @@ export async function makeSupabaseConformanceBackend(): Promise<Backend<Conforma
       listTodos: async (c) => {
         const { data, error } = await c.from("todos").select("*").order("created_at");
         if (error) throw error;
-        return (data ?? []).map(
-          (r) => ({ _id: r.id as DocumentId, title: r.title, done: r.done }) as Todo,
-        );
+        return (data ?? []).map((r) => ({ _id: r.id as DocumentId, title: r.title, done: r.done }));
       },
       getTodo: async (c, { id }) => {
         const { data, error } = await c.from("todos").select("*").eq("id", id).maybeSingle();
         if (error) throw error;
-        return data
-          ? ({ _id: data.id as DocumentId, title: data.title, done: data.done } as Todo)
-          : null;
+        return data ? { _id: data.id as DocumentId, title: data.title, done: data.done } : null;
       },
     },
     mutations: {
