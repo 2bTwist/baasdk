@@ -12,5 +12,11 @@
       "@baas/adapter-convex/convex": ["packages/adapter-convex/convex/index.ts"]
     }
   },
-  "include": ["packages/*/src", "packages/*/test", "packages/*/convex", "vitest.config.ts"]
+  "include": [
+    "packages/*/src",
+    "packages/*/test",
+    "packages/*/convex",
+    "examples",
+    "vitest.config.ts"
+  ]
 }
