@@ -1,0 +1,47 @@
+import { StoreSchema, AnySchema, DocumentId, Capabilities, ErrorCode, Backend, Adapter } from '@baas/core';
+
+/**
+ * `@baas/adapter-memory` — the in-memory reference adapter.
+ *
+ * This is built ALONGSIDE the conformance suite: it is the executable spec and
+ * the test fixture, and it lets a demo app exist before any real provider is
+ * touched. It implements the full `Backend` contract from
+ * `@baas/core` and is designed to declare — and honestly satisfy — a rich set
+ * of capabilities (transactions, reactive queries, credential management, file
+ * storage), so the conformance suite actually exercises every gated branch.
+ *
+ * Everything here is process-local and synchronous under the hood; the async
+ * `Result`-returning surface exists purely to match the port contract.
+ */
+
+/** Carries a `core` ErrorCode through a throw so operation fns can signal one. */
+declare class MemoryError extends Error {
+    readonly code: ErrorCode;
+    constructor(code: ErrorCode, message: string);
+}
+type Record_ = Record<string, unknown>;
+/** The handle an operation function uses to read and write documents. */
+interface MemoryContext {
+    all<T = Record_>(collection: string): T[];
+    get<T = Record_>(collection: string, id: DocumentId): T | null;
+    insert(collection: string, value: Record_): DocumentId;
+    patch(collection: string, id: DocumentId, value: Record_): void;
+    remove(collection: string, id: DocumentId): void;
+}
+type QueryFn<Args, Res> = (ctx: MemoryContext, args: Args) => Res | Promise<Res>;
+type MutationFn<Args, Res> = (ctx: MemoryContext, args: Args) => Res | Promise<Res>;
+interface MemoryConfig<S extends StoreSchema = AnySchema> {
+    readonly queries: {
+        [K in keyof S["queries"]]: QueryFn<S["queries"][K]["args"], S["queries"][K]["result"]>;
+    };
+    readonly mutations: {
+        [K in keyof S["mutations"]]: MutationFn<S["mutations"][K]["args"], S["mutations"][K]["result"]>;
+    };
+    /** Override declared capabilities, e.g. to model a non-reactive backend in tests. */
+    readonly capabilities?: Partial<Capabilities>;
+}
+declare function createMemoryBackend<S extends StoreSchema = AnySchema>(config: MemoryConfig<S>): Backend<S>;
+/** `Adapter`-typed entry point for symmetry with real adapters. */
+declare const memoryAdapter: Adapter<MemoryConfig>;
+
+export { type MemoryConfig, type MemoryContext, MemoryError, type MutationFn, type QueryFn, createMemoryBackend, memoryAdapter };
