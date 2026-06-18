@@ -12,3 +12,6 @@ pre-commit:
       stage_fixed: true
     typecheck:
       run: pnpm exec turbo run typecheck
+    boundaries:
+      glob: "packages/**/*.ts"
+      run: pnpm lint:boundaries
