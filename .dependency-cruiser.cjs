@@ -13,7 +13,14 @@ module.exports = {
       severity: "error",
       from: { path: "^packages/core/src/" },
       to: {
-        dependencyTypes: ["npm", "npm-dev", "npm-optional", "npm-peer", "npm-no-pkg", "npm-unknown"],
+        dependencyTypes: [
+          "npm",
+          "npm-dev",
+          "npm-optional",
+          "npm-peer",
+          "npm-no-pkg",
+          "npm-unknown",
+        ],
       },
     },
     {

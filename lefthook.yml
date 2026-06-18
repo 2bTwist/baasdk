@@ -5,7 +5,7 @@
 pre-commit:
   commands:
     biome:
-      glob: "*.{ts,tsx,js,jsx,json,jsonc}"
+      glob: "*.{ts,tsx,cts,mts,js,jsx,cjs,mjs,json,jsonc}"
       # Auto-fix what's fixable and re-stage; fail the commit on any remaining
       # warning or error (zero-warnings Definition of Done).
       run: pnpm exec biome check --write --error-on-warnings --no-errors-on-unmatched {staged_files}
