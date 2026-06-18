@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "description": "Supabase adapter: PostgREST document store, Supabase Auth (credential management), and Supabase Storage, behind the @baas/core ports.",
   "type": "module",
+  "license": "MIT",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

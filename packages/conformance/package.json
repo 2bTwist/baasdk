@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "description": "One contract suite, parameterized by a Backend constructor. The executable specification every adapter must pass.",
   "type": "module",
+  "license": "MIT",
   "exports": {
     ".": {
       "types": "./src/index.ts",
