@@ -17,6 +17,15 @@ create table if not exists public.notes (
   pinned boolean not null default false
 );
 
+-- Grant table access to the API roles. On a FRESH database (every CI run) the
+-- CLI's migrations do NOT inherit the default privileges that would otherwise
+-- grant these roles access to new public tables, so PostgREST returns
+-- "permission denied for table" even with the service key. A persisted local
+-- volume hides this (it carries grants from earlier runs), which is exactly why
+-- it passed locally but failed in CI. Grant explicitly so it is deterministic.
+grant all on public.todos to anon, authenticated, service_role;
+grant all on public.notes to anon, authenticated, service_role;
+
 insert into storage.buckets (id, name, public)
 values ('conformance', 'conformance', false)
 on conflict (id) do nothing;

@@ -62,5 +62,10 @@ supabase stop                        # tear the stack down when done
 
 The service-role key is used so the test's reset (table truncation, auth-user
 cleanup) bypasses RLS. The fixture (`test/fixture.ts`) resets persistent state on
-every construction, since — unlike the in-memory adapter — a real database
+every construction, since, unlike the in-memory adapter, a real database
 carries state between tests.
+
+**CI runs this on every commit.** The `supabase-conformance` job boots the same
+stack in GitHub Actions via the Supabase CLI (`supabase/setup-cli` +
+`supabase start`, excluding studio/analytics/realtime for speed), so the
+portability claim is proven against a real backend per-commit, not just locally.
