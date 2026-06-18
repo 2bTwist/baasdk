@@ -19,7 +19,6 @@
     "noUnusedParameters": true,
 
     "declaration": true,
-    "isolatedDeclarations": true,
     "declarationMap": true,
     "sourceMap": true,
     "skipLibCheck": true,
