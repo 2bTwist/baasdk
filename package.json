@@ -30,6 +30,7 @@
     "@changesets/cli": "^2",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.7.2",
     "@size-limit/preset-small-lib": "^12.1.0",
+    "@supabase/supabase-js": "^2.108.2",
     "@types/node": "^25.9.3",
     "@typescript-eslint/utils": "^8.61.1",
     "dependency-cruiser": "^17.4.3",
