@@ -2,6 +2,24 @@
   "name": "baasdk-monorepo",
   "version": "0.0.0",
   "private": true,
+  "description": "Thin, honest TypeScript ports-and-adapters SDK over backend-as-a-service providers (Supabase, Convex, in-memory): portable document CRUD, auth, and file storage with declared capabilities, one shared conformance suite, and a typed native() escape hatch.",
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "supabase",
+    "convex",
+    "ports-and-adapters",
+    "adapter-pattern",
+    "typescript",
+    "abstraction-layer",
+    "conformance-testing"
+  ],
+  "homepage": "https://github.com/2bTwist/baasdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2bTwist/baasdk.git"
+  },
+  "bugs": "https://github.com/2bTwist/baasdk/issues",
   "type": "module",
   "license": "MIT",
   "packageManager": "pnpm@11.5.3",

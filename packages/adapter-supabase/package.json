@@ -2,6 +2,18 @@
   "name": "@baas/adapter-supabase",
   "version": "0.0.0",
   "description": "Supabase adapter: PostgREST document store, Supabase Auth (credential management), and Supabase Storage, behind the @baas/core ports.",
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "ports-and-adapters",
+    "typescript",
+    "esm",
+    "supabase",
+    "postgrest",
+    "postgres",
+    "auth",
+    "file-storage"
+  ],
   "type": "module",
   "license": "MIT",
   "repository": {
