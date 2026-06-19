@@ -12,6 +12,7 @@ export default defineConfig({
       "@baas/core": src("./packages/core/src/index.ts"),
       "@baas/conformance": src("./packages/conformance/src/index.ts"),
       "@baas/adapter-memory": src("./packages/adapter-memory/src/index.ts"),
+      "@baas/migrate": src("./packages/migrate/src/index.ts"),
       "@baas/adapter-supabase": src("./packages/adapter-supabase/src/index.ts"),
       // More specific subpath alias MUST precede the bare package alias: Vite
       // matches string aliases by prefix, so the bare one would otherwise capture

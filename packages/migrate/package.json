@@ -1,0 +1,52 @@
+{
+  "name": "@baas/migrate",
+  "version": "0.0.0",
+  "description": "One-time portable data cutover between any two Backends. Pages a source with list(), re-inserts into a target with insert(), remaps relations with patch(). Built on the core port, depends on no provider SDK.",
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "ports-and-adapters",
+    "typescript",
+    "esm",
+    "migration",
+    "cutover",
+    "data-migration",
+    "supabase",
+    "convex"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2bTwist/baasdk.git",
+    "directory": "packages/migrate"
+  },
+  "homepage": "https://github.com/2bTwist/baasdk/tree/main/packages/migrate#readme",
+  "bugs": "https://github.com/2bTwist/baasdk/issues",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint:publish": "publint --strict && attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@baas/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@baas/adapter-memory": "workspace:^",
+    "tsup": "^8",
+    "typescript": "^5.7",
+    "vitest": "^3"
+  }
+}
