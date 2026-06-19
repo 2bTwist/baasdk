@@ -42,7 +42,7 @@ import {
   type UploadOptions,
 } from "@baas/core";
 import type { Provider, SupabaseClient, Session as SupabaseSession } from "@supabase/supabase-js";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
 // Error normalization — PostgREST / Auth / Storage errors into BackendError.
@@ -84,6 +84,18 @@ export interface SupabaseConfig<S extends StoreSchema = AnySchema> {
       S["mutations"][K]["args"],
       S["mutations"][K]["result"]
     >;
+  };
+  /**
+   * Per-query Realtime watch declarations. Presence of ANY entry flips
+   * `reactiveQueries` to true (unless overridden via `capabilities`). Each named
+   * query lists the table(s) whose changes re-run it and re-deliver the full
+   * fresh result. The WHOLE table is watched (not a filtered slice) for
+   * correctness, since a filter would miss rows leaving the set. Requires Supabase
+   * Realtime enabled for those tables (publication membership); see the adapter
+   * guide. Convex needs no equivalent (it tracks read-sets automatically).
+   */
+  readonly realtime?: {
+    readonly [K in keyof S["queries"]]?: { readonly tables: readonly string[] };
   };
   readonly capabilities?: Partial<Capabilities>;
 }
@@ -132,21 +144,134 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     onChange: (result: Result<S["queries"][K]["result"]>) => void,
   ): Unsubscribe {
     const fn = this.config.queries[operation];
-    // Base adapter is one-shot (reactiveQueries: false): deliver the current
-    // result once. A Realtime-backed variant would subscribe to table changes
-    // here and re-emit, flipping the capability to true.
-    void (async () => {
-      if (!fn) {
+    if (!fn) {
+      queueMicrotask(() => {
         onChange(err({ code: "not_found", message: `unknown query "${operation}"` }));
-        return;
+      });
+      return () => {};
+    }
+
+    // Non-reactive backend (no realtime watches configured): deliver the current
+    // result once. This is the historical one-shot behavior; reactiveQueries is
+    // false unless a `realtime` watch was declared for this backend.
+    if (!this.capabilities.reactiveQueries) {
+      void (async () => {
+        try {
+          onChange(ok(await fn(this.sb, args)));
+        } catch (e) {
+          onChange(err(toBackendError(e)));
+        }
+      })();
+      return () => {};
+    }
+
+    // Reactive backend, but this query declares no watch: a configuration error,
+    // surfaced loudly rather than silently degrading to one-shot. The capability
+    // says "live", so silence would be a lie. Use run() for a deliberate one-shot.
+    const watch = this.config.realtime?.[operation];
+    if (!watch) {
+      // reactiveQueries is a single global flag, but reactivity is per-query:
+      // this query has no watch, so live updates are unavailable for it. That is
+      // a capability gap, not a bad argument, hence unsupported_capability.
+      queueMicrotask(() => {
+        onChange(
+          err({
+            code: "unsupported_capability",
+            message: `subscribe("${operation}") has no realtime watch configured; declare one in the adapter's \`realtime\` config, or use run() for a one-shot read`,
+          }),
+        );
+      });
+      return () => {};
+    }
+
+    // Reactive path: deliver an initial snapshot immediately, then re-run the
+    // query on every (coalesced) change to a watched table. A monotonic
+    // generation counter, shared by the initial delivery, the SUBSCRIBED
+    // catch-up, and every debounced re-run, guarantees a slow older query can
+    // never overwrite a newer result.
+    let gen = 0;
+    let dirty = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let closed = false;
+    let errored = false;
+    const DEBOUNCE_MS = 250;
+
+    const deliver = (myGen: number, force = false): void => {
+      void (async () => {
+        try {
+          const data = await fn(this.sb, args);
+          // The generation guard prevents a slow older re-run from overwriting a
+          // newer result. `force` (the initial snapshot only) additionally
+          // ignores teardown, so the always-one-delivery contract holds even when
+          // the caller unsubscribes synchronously.
+          if ((force || !closed) && myGen === gen) onChange(ok(data));
+        } catch (e) {
+          if ((force || !closed) && myGen === gen) onChange(err(toBackendError(e)));
+        }
+      })();
+    };
+
+    const fire = (): void => {
+      timer = undefined;
+      if (closed || !dirty) return;
+      dirty = false;
+      deliver(++gen);
+    };
+
+    const schedule = (): void => {
+      if (closed) return;
+      dirty = true;
+      // Trailing-edge debounce: a continuous burst keeps re-arming the timer and
+      // collapses into a single re-run once the writes go quiet (DEBOUNCE_MS).
+      if (!timer) timer = setTimeout(fire, DEBOUNCE_MS);
+    };
+
+    // Immediate initial snapshot, satisfies the always-one-delivery contract
+    // even if the realtime channel never establishes or the caller unsubscribes
+    // synchronously (force = true).
+    deliver(++gen, true);
+
+    const channel = this.sb.channel(`baas:${operation}:${crypto.randomUUID()}`);
+    for (const table of watch.tables) {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        schedule();
+      });
+    }
+    channel.subscribe((status) => {
+      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+        // SUBSCRIBED fires on the initial join AND on every reconnect after a
+        // drop. Re-running each time is deliberate: it closes the gap of changes
+        // missed while disconnected, and the generation counter keeps results
+        // ordered. Recovery also re-arms the error latch below.
+        errored = false;
+        schedule();
+      } else if (
+        status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
+        status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT ||
+        status === REALTIME_SUBSCRIBE_STATES.CLOSED
+      ) {
+        // Loud failure, never a silent fall-back to one-shot. supabase-js
+        // re-fires these across the channel's life (one per failed rejoin), so
+        // latch to report the first failure in a streak, not every callback. A
+        // CLOSED from our own teardown is gated by `closed`. CHANNEL_ERROR is
+        // most often "Realtime not enabled / table not in the publication".
+        if (!closed && !errored) {
+          errored = true;
+          onChange(
+            err({
+              code: "network",
+              message: `realtime channel ${status} for "${operation}" (check Realtime is enabled for the watched table)`,
+            }),
+          );
+        }
       }
-      try {
-        onChange(ok(await fn(this.sb, args)));
-      } catch (e) {
-        onChange(err(toBackendError(e)));
-      }
-    })();
-    return () => {};
+    });
+
+    return () => {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      void this.sb.removeChannel(channel);
+    };
   }
 
   async mutate<K extends MutationName<S>>(
@@ -434,7 +559,14 @@ export function createSupabaseBackend<S extends StoreSchema = AnySchema>(
   config: SupabaseConfig<S>,
 ): Backend<S> {
   const sb = resolveClient(config);
-  const capabilities: Capabilities = { ...SUPABASE_CAPABILITIES, ...config.capabilities };
+  // Reactivity is opt-in: declaring any `realtime` watch flips the capability on.
+  // An explicit `config.capabilities` override still wins (last spread).
+  const hasWatches = Object.keys(config.realtime ?? {}).length > 0;
+  const capabilities: Capabilities = {
+    ...SUPABASE_CAPABILITIES,
+    reactiveQueries: hasWatches,
+    ...config.capabilities,
+  };
   const pk = config.primaryKey ?? "id";
   const bucket = config.bucket ?? "conformance";
   return {

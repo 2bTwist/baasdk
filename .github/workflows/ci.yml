@@ -113,11 +113,13 @@ jobs:
           version: 2.107.0
       - name: Start Supabase (Postgres + REST + Auth + Storage)
         # --workdir: the project (config.toml + migrations) lives under the adapter,
-        # not the repo root. Migrations run on start (create todos/notes + bucket).
-        # Exclude unused services; logflare+vector (analytics) are the usual CI flake.
+        # not the repo root. Migrations run on start (create todos/notes + bucket,
+        # and 0002 adds todos to the supabase_realtime publication).
+        # realtime IS started (the reactive subscribe() conformance test needs it);
+        # exclude the rest. logflare+vector (analytics) are the usual CI flake.
         run: |
           supabase start --workdir packages/adapter-supabase \
-            -x studio,imgproxy,realtime,edge-runtime,logflare,vector,supavisor,mailpit
+            -x studio,imgproxy,edge-runtime,logflare,vector,supavisor,mailpit
       - name: Export Supabase env
         # `-o env` emits QUOTED values; strip the quotes before $GITHUB_ENV, and
         # keep only the two the fixture reads (SUPABASE_URL/_SERVICE_ROLE_KEY).

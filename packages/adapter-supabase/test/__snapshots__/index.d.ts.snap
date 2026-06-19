@@ -36,6 +36,20 @@ interface SupabaseConfig<S extends StoreSchema = AnySchema> {
     readonly mutations: {
         [K in keyof S["mutations"]]: SupabaseMutationFn<S["mutations"][K]["args"], S["mutations"][K]["result"]>;
     };
+    /**
+     * Per-query Realtime watch declarations. Presence of ANY entry flips
+     * `reactiveQueries` to true (unless overridden via `capabilities`). Each named
+     * query lists the table(s) whose changes re-run it and re-deliver the full
+     * fresh result. The WHOLE table is watched (not a filtered slice) for
+     * correctness, since a filter would miss rows leaving the set. Requires Supabase
+     * Realtime enabled for those tables (publication membership); see the adapter
+     * guide. Convex needs no equivalent (it tracks read-sets automatically).
+     */
+    readonly realtime?: {
+        readonly [K in keyof S["queries"]]?: {
+            readonly tables: readonly string[];
+        };
+    };
     readonly capabilities?: Partial<Capabilities>;
 }
 declare function createSupabaseBackend<S extends StoreSchema = AnySchema>(config: SupabaseConfig<S>): Backend<S>;

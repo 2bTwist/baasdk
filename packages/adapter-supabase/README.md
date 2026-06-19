@@ -6,7 +6,7 @@ The first real adapter. Implements the `@baas/core` ports over Supabase:
 |------|------------------|
 | `DocumentStore` direct CRUD | PostgREST (`from(table).select/insert/update/delete`) |
 | `DocumentStore` named ops (`run`/`mutate`) | app-supplied functions over the client (per-backend, like the in-memory adapter) |
-| `subscribe` | one-shot delivery (`reactiveQueries: false`; Realtime is opt-in) |
+| `subscribe` | one-shot by default; live updates when a `realtime` watch is declared (`reactiveQueries` flips true) |
 | `AuthProvider` + `CredentialAuth` | Supabase Auth (`managesCredentials: true`) |
 | `FileStore` | Supabase Storage (FileHandle = `bucket::path`) |
 
@@ -44,6 +44,51 @@ the calling convention + Result/capability shape, not the query implementations.
 Rich PostgREST features (embedded joins, aggregates, RLS-aware Realtime) are
 reached through `backend.store.native()` — not added to the core contract.
 
+## Live updates (Realtime)
+
+`subscribe()` is one-shot by default. To get live updates, declare a `realtime`
+watch listing the table(s) each query reads:
+
+```ts
+const backend = createSupabaseBackend({
+  url: process.env.SUPABASE_URL,
+  key: process.env.SUPABASE_KEY,
+  queries: { listTodos: async (sb) => { /* ... */ } },
+  mutations: { /* ... */ },
+  realtime: { listTodos: { tables: ["todos"] } },
+});
+```
+
+Declaring any watch flips `reactiveQueries` to `true`. On a change to a watched
+table the adapter re-runs the query and delivers the full fresh result (the same
+shape Convex delivers), so portable subscribe code runs unchanged on both
+backends. Behavior:
+
+- The whole table is watched, not a filtered slice, so a row leaving the result
+  set is never missed. Bursts of changes are coalesced into a single re-run.
+- If the Realtime channel cannot establish (table not enabled, connection or auth
+  failure), `onChange` receives an error `Result`, never a silent fall-back to
+  one-shot. Subscribing to a query with no declared watch is also a loud error.
+
+**Requirements.** The watched tables must be in the `supabase_realtime`
+publication (see `supabase/migrations/0002_realtime.sql` for the conformance
+`todos` table). On a persisted local stack apply it with `supabase migration up`;
+CI applies it on a fresh `supabase start`.
+
+**RLS trap.** Supabase Realtime enforces RLS using the subscribing client's role.
+With the anon key and RLS enabled, `postgres_changes` only fires for rows the
+user's `SELECT` policy allows; if no policy grants access, the channel still
+reaches `SUBSCRIBED` and then delivers **nothing** (no error). So a missing RLS
+policy degrades live updates to silent no-ops. Subscribe with a client whose role
+is authorized to read the watched tables, and add a `SELECT` policy for that role.
+The conformance suite uses the service-role key (RLS bypassed), so it does not
+exercise this path.
+
+**Scaling caveat.** Supabase per-client `postgres_changes` fans out under RLS
+(one write with N subscribers triggers N authorized reads), and re-running the
+query multiplies that. For high-write tables, prefer `native()` Realtime with a
+server-side fan-in. Filtered watches are not yet supported.
+
 ## Running the conformance suite (live)
 
 The suite runs against a real local stack and skips when its env vars are absent.
@@ -67,5 +112,6 @@ carries state between tests.
 
 **CI runs this on every commit.** The `supabase-conformance` job boots the same
 stack in GitHub Actions via the Supabase CLI (`supabase/setup-cli` +
-`supabase start`, excluding studio/analytics/realtime for speed), so the
-portability claim is proven against a real backend per-commit, not just locally.
+`supabase start`, excluding studio/analytics for speed; Realtime IS started so
+the reactive `subscribe` test runs), so the portability claim is proven against a
+real backend per-commit, not just locally.
