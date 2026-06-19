@@ -37,6 +37,10 @@ export async function makeSupabaseConformanceBackend(): Promise<Backend<Conforma
   return createSupabaseBackend<ConformanceSchema>({
     client: sb,
     bucket: "conformance",
+    // Declare the Realtime watch so reactiveQueries flips true and subscribe()
+    // delivers live updates: a change to `todos` re-runs listTodos. Requires the
+    // todos table in the supabase_realtime publication (migration 0002).
+    realtime: { listTodos: { tables: ["todos"] } },
     queries: {
       listTodos: async (c) => {
         const { data, error } = await c.from("todos").select("*").order("created_at");

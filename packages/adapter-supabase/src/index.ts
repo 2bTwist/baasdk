@@ -42,7 +42,7 @@ import {
   type UploadOptions,
 } from "@baas/core";
 import type { Provider, SupabaseClient, Session as SupabaseSession } from "@supabase/supabase-js";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 
 // ---------------------------------------------------------------------------
 // Error normalization — PostgREST / Auth / Storage errors into BackendError.
@@ -84,6 +84,18 @@ export interface SupabaseConfig<S extends StoreSchema = AnySchema> {
       S["mutations"][K]["args"],
       S["mutations"][K]["result"]
     >;
+  };
+  /**
+   * Per-query Realtime watch declarations. Presence of ANY entry flips
+   * `reactiveQueries` to true (unless overridden via `capabilities`). Each named
+   * query lists the table(s) whose changes re-run it and re-deliver the full
+   * fresh result. The WHOLE table is watched (not a filtered slice) for
+   * correctness, since a filter would miss rows leaving the set. Requires Supabase
+   * Realtime enabled for those tables (publication membership); see the adapter
+   * guide. Convex needs no equivalent (it tracks read-sets automatically).
+   */
+  readonly realtime?: {
+    readonly [K in keyof S["queries"]]?: { readonly tables: readonly string[] };
   };
   readonly capabilities?: Partial<Capabilities>;
 }
@@ -132,21 +144,114 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     onChange: (result: Result<S["queries"][K]["result"]>) => void,
   ): Unsubscribe {
     const fn = this.config.queries[operation];
-    // Base adapter is one-shot (reactiveQueries: false): deliver the current
-    // result once. A Realtime-backed variant would subscribe to table changes
-    // here and re-emit, flipping the capability to true.
-    void (async () => {
-      if (!fn) {
+    if (!fn) {
+      queueMicrotask(() => {
         onChange(err({ code: "not_found", message: `unknown query "${operation}"` }));
-        return;
+      });
+      return () => {};
+    }
+
+    // Non-reactive backend (no realtime watches configured): deliver the current
+    // result once. This is the historical one-shot behavior; reactiveQueries is
+    // false unless a `realtime` watch was declared for this backend.
+    if (!this.capabilities.reactiveQueries) {
+      void (async () => {
+        try {
+          onChange(ok(await fn(this.sb, args)));
+        } catch (e) {
+          onChange(err(toBackendError(e)));
+        }
+      })();
+      return () => {};
+    }
+
+    // Reactive backend, but this query declares no watch: a configuration error,
+    // surfaced loudly rather than silently degrading to one-shot. The capability
+    // says "live", so silence would be a lie. Use run() for a deliberate one-shot.
+    const watch = this.config.realtime?.[operation];
+    if (!watch) {
+      queueMicrotask(() => {
+        onChange(
+          err({
+            code: "validation",
+            message: `subscribe("${operation}") requires a realtime watch; none configured`,
+          }),
+        );
+      });
+      return () => {};
+    }
+
+    // Reactive path: deliver an initial snapshot immediately, then re-run the
+    // query on every (coalesced) change to a watched table. A monotonic
+    // generation counter, shared by the initial delivery, the SUBSCRIBED
+    // catch-up, and every debounced re-run, guarantees a slow older query can
+    // never overwrite a newer result.
+    let gen = 0;
+    let dirty = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let closed = false;
+    const DEBOUNCE_MS = 250;
+
+    const deliver = (myGen: number): void => {
+      void (async () => {
+        try {
+          const data = await fn(this.sb, args);
+          if (!closed && myGen === gen) onChange(ok(data));
+        } catch (e) {
+          if (!closed && myGen === gen) onChange(err(toBackendError(e)));
+        }
+      })();
+    };
+
+    const fire = (): void => {
+      timer = undefined;
+      if (closed || !dirty) return;
+      dirty = false;
+      deliver(++gen);
+    };
+
+    const schedule = (): void => {
+      if (closed) return;
+      dirty = true;
+      // Trailing-edge debounce: a continuous burst keeps re-arming the timer and
+      // collapses into a single re-run once the writes go quiet (DEBOUNCE_MS).
+      if (!timer) timer = setTimeout(fire, DEBOUNCE_MS);
+    };
+
+    // Immediate initial snapshot, satisfies the always-one-delivery contract
+    // even if the realtime channel never establishes.
+    deliver(++gen);
+
+    const channel = this.sb.channel(`baas:${operation}:${crypto.randomUUID()}`);
+    for (const table of watch.tables) {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        schedule();
+      });
+    }
+    channel.subscribe((status) => {
+      if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
+        // Catch-up: a change between the initial snapshot and the channel going
+        // live would otherwise be missed; re-run once now that we're subscribed.
+        schedule();
+      } else if (
+        status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
+        status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT
+      ) {
+        // Loud failure: Realtime not enabled on the table, or auth/connection
+        // failure. Never silently fall back to one-shot.
+        if (!closed) {
+          onChange(
+            err({ code: "network", message: `realtime channel ${status} for "${operation}"` }),
+          );
+        }
       }
-      try {
-        onChange(ok(await fn(this.sb, args)));
-      } catch (e) {
-        onChange(err(toBackendError(e)));
-      }
-    })();
-    return () => {};
+    });
+
+    return () => {
+      closed = true;
+      if (timer) clearTimeout(timer);
+      void this.sb.removeChannel(channel);
+    };
   }
 
   async mutate<K extends MutationName<S>>(
@@ -434,7 +539,14 @@ export function createSupabaseBackend<S extends StoreSchema = AnySchema>(
   config: SupabaseConfig<S>,
 ): Backend<S> {
   const sb = resolveClient(config);
-  const capabilities: Capabilities = { ...SUPABASE_CAPABILITIES, ...config.capabilities };
+  // Reactivity is opt-in: declaring any `realtime` watch flips the capability on.
+  // An explicit `config.capabilities` override still wins (last spread).
+  const hasWatches = Object.keys(config.realtime ?? {}).length > 0;
+  const capabilities: Capabilities = {
+    ...SUPABASE_CAPABILITIES,
+    reactiveQueries: hasWatches,
+    ...config.capabilities,
+  };
   const pk = config.primaryKey ?? "id";
   const bucket = config.bucket ?? "conformance";
   return {
