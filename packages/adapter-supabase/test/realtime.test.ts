@@ -45,9 +45,12 @@ type StatusCb = (status: REALTIME_SUBSCRIBE_STATES) => void;
 
 class FakeChannel {
   readonly pgHandlers: Array<() => void> = [];
+  /** The postgres_changes config object passed to each `.on()` call. */
+  readonly pgConfigs: Array<Record<string, unknown>> = [];
   statusCb: StatusCb | undefined;
-  on(_event: string, _filter: unknown, cb: () => void): this {
+  on(_event: string, config: Record<string, unknown>, cb: () => void): this {
     this.pgHandlers.push(cb);
+    this.pgConfigs.push(config);
     return this;
   }
   subscribe(cb: StatusCb): this {
@@ -316,5 +319,28 @@ describe("adapter-supabase reactive subscribe()", () => {
     channel.setStatus(REALTIME_SUBSCRIBE_STATES.CLOSED); // teardown-driven close
     await flush();
     expect(received).toHaveLength(countAtUnsub); // no error delivered
+  });
+
+  it("a bare table-name watch subscribes to the whole table (no filter)", async () => {
+    const backend = makeBackend({ fake, watch: true }); // tables: ["todos"]
+    backend.store.subscribe("listTodos", {}, () => {});
+    await flush();
+    const cfg = at(at(fake.channels, 0).pgConfigs, 0);
+    expect(cfg).toMatchObject({ schema: "public", table: "todos" });
+    expect(cfg).not.toHaveProperty("filter");
+  });
+
+  it("a { table, filter } watch passes the filter through to the channel config", async () => {
+    const backend = createSupabaseBackend<TestSchema>({
+      client: fake as unknown as SupabaseClient,
+      queries: { listTodos: () => queryImpl() },
+      mutations: {},
+      realtime: { listTodos: { tables: [{ table: "messages", filter: "room_id=eq.42" }] } },
+    });
+    expect(backend.capabilities.reactiveQueries).toBe(true);
+    backend.store.subscribe("listTodos", {}, () => {});
+    await flush();
+    const cfg = at(at(fake.channels, 0).pgConfigs, 0);
+    expect(cfg).toMatchObject({ schema: "public", table: "messages", filter: "room_id=eq.42" });
   });
 });
