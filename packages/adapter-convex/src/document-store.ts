@@ -11,9 +11,12 @@
 
 import {
   type Capabilities,
+  type Cursor,
   type DocumentId,
   type DocumentStore,
   err,
+  type ListOptions,
+  type ListPage,
   ok,
   type Result,
   type StoreSchema,
@@ -35,7 +38,17 @@ export interface HelperRefs {
     string
   >;
   readonly get: FunctionReference<"query", "public", { collection: string; id: string }, unknown>;
-  readonly list: FunctionReference<"query", "public", { collection: string }, unknown[]>;
+  readonly list: FunctionReference<
+    "query",
+    "public",
+    {
+      collection: string;
+      where?: ReadonlyArray<{ field: string; op: string; value: string | number | boolean | null }>;
+      order?: string;
+      paginationOpts?: { numItems: number; cursor: string | null };
+    },
+    { page: unknown[]; isDone: boolean; continueCursor: string }
+  >;
   readonly patch: FunctionReference<
     "mutation",
     "public",
@@ -126,6 +139,26 @@ export class ConvexDocumentStore<S extends StoreSchema> implements DocumentStore
     try {
       const doc = (await this.client.query(this.helpers.get, { collection, id })) as T | null;
       return ok(doc ?? null);
+    } catch (e) {
+      return err(toBackendError(e));
+    }
+  }
+
+  async list<T = unknown>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>> {
+    try {
+      const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
+      // Serialize the portable [field, op, value] tuples into the helper's objects.
+      const where = (opts?.where ?? []).map(([field, op, value]) => ({ field, op, value }));
+      const result = await this.client.query(this.helpers.list, {
+        collection,
+        where,
+        order: opts?.order ?? "asc",
+        paginationOpts: { numItems: limit, cursor: opts?.cursor ?? null },
+      });
+      // Convex docs already carry `_id`; no normalization needed.
+      const items = result.page as T[];
+      const nextCursor = result.isDone ? null : (result.continueCursor as Cursor);
+      return ok({ items, nextCursor });
     } catch (e) {
       return err(toBackendError(e));
     }

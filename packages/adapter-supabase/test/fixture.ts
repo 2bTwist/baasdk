@@ -29,6 +29,7 @@ export async function makeSupabaseConformanceBackend(): Promise<Backend<Conforma
   // Reset persistent state: each test must see an empty backend.
   await sb.from("todos").delete().not("id", "is", null);
   await sb.from("notes").delete().not("id", "is", null);
+  await sb.from("items").delete().not("id", "is", null);
   const { data: list } = await sb.auth.admin.listUsers();
   for (const u of list?.users ?? []) {
     if (u.email === CONFORMANCE_EMAIL) await sb.auth.admin.deleteUser(u.id);

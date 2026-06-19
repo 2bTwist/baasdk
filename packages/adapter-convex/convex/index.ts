@@ -23,9 +23,12 @@
  */
 
 import {
+  type FilterBuilder,
   type GenericDataModel,
   type GenericMutationCtx,
+  type GenericTableInfo,
   mutationGeneric,
+  paginationOptsValidator,
   queryGeneric,
 } from "convex/server";
 import { ConvexError, type GenericId, v } from "convex/values";
@@ -86,9 +89,60 @@ export const get = queryGeneric({
   },
 });
 
+/** Translate one portable filter condition onto a Convex filter expression. */
+const applyConvexOp = (
+  b: FilterBuilder<GenericTableInfo>,
+  field: string,
+  op: string,
+  value: string | number | boolean | null,
+) => {
+  const f = b.field(field);
+  switch (op) {
+    case "neq":
+      return b.neq(f, value);
+    case "gt":
+      return b.gt(f, value);
+    case "gte":
+      return b.gte(f, value);
+    case "lt":
+      return b.lt(f, value);
+    case "lte":
+      return b.lte(f, value);
+    default:
+      return b.eq(f, value); // "eq"
+  }
+};
+
+/**
+ * Portable `list`: creation-ordered (`_creationTime`), filtered, cursor-paginated.
+ * Convex docs already carry `_id`, so no id normalization is needed. With no
+ * `paginationOpts` it collects all (used by callers that want the whole set).
+ * `.filter()` scans without an index; see `efficientFilterRequiresIndex`.
+ */
 export const list = queryGeneric({
-  args: { collection: v.string() },
-  handler: async (ctx, { collection }) => await ctx.db.query(collection).collect(),
+  args: {
+    collection: v.string(),
+    where: v.optional(
+      v.array(
+        v.object({
+          field: v.string(),
+          op: v.string(),
+          value: v.union(v.string(), v.float64(), v.boolean(), v.null()),
+        }),
+      ),
+    ),
+    order: v.optional(v.string()),
+    paginationOpts: v.optional(paginationOptsValidator),
+  },
+  handler: async (ctx, { collection, where, order, paginationOpts }) => {
+    const base = ctx.db.query(collection);
+    const filtered =
+      where && where.length > 0
+        ? base.filter((b) => b.and(...where.map((c) => applyConvexOp(b, c.field, c.op, c.value))))
+        : base;
+    const ordered = filtered.order(order === "desc" ? "desc" : "asc");
+    return paginationOpts ? await ordered.paginate(paginationOpts) : await ordered.collect();
+  },
 });
 
 export const patch = mutationGeneric({

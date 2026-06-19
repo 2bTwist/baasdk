@@ -37,6 +37,13 @@ export type DocumentId = Brand<string, "DocumentId">;
  */
 export type FileHandle = Brand<string, "FileHandle">;
 
+/**
+ * Opaque pagination cursor returned by `list`. Encoded per-adapter (a Convex
+ * continuation cursor, an encoded keyset on Supabase); never constructed by hand,
+ * only passed back to `list` to fetch the next page.
+ */
+export type Cursor = Brand<string, "Cursor">;
+
 // ---------------------------------------------------------------------------
 // Result type — normalizes Supabase's `{ data, error }` and Convex's
 // throw-on-error into ONE shape so callers handle errors uniformly.
@@ -162,6 +169,46 @@ export interface AnySchema extends StoreSchema {
 type QueryName<S extends StoreSchema> = keyof S["queries"] & string;
 type MutationName<S extends StoreSchema> = keyof S["mutations"] & string;
 
+// ---------------------------------------------------------------------------
+// list() is the portable, cursor-paginated, creation-ordered read primitive.
+// Deliberately small: creation-order only (no arbitrary-field sort, which Convex
+// cannot do in a generic helper without an app-declared index), six comparison
+// operators, cursor (never offset) pagination. Richer querying via native().
+// ---------------------------------------------------------------------------
+
+export type ListOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
+export type ListScalar = string | number | boolean | null;
+/** A single AND-combined filter condition: [field, operator, value]. */
+export type WhereCondition = readonly [field: string, op: ListOp, value: ListScalar];
+
+export interface ListOptions {
+  readonly where?: readonly WhereCondition[];
+  /** Creation-order direction. Default "asc". This is a direction, NOT a field. */
+  readonly order?: "asc" | "desc";
+  /** Page size. Default 50, clamped to a maximum of 200. */
+  readonly limit?: number;
+  /**
+   * Omit (or null) for the first page; pass the prior page's `nextCursor` to
+   * continue. A cursor is only valid for the IDENTICAL query shape (same
+   * collection, `where`, and `order`) it came from; reusing it with a different
+   * filter or direction is undefined. A malformed/tampered cursor yields an error
+   * `Result`, never a throw.
+   */
+  readonly cursor?: Cursor | null;
+}
+
+export interface ListPage<T> {
+  readonly items: ReadonlyArray<T>;
+  /**
+   * Pass back to `list` for the next page; `null` means the collection is
+   * exhausted. Loop until `null`: a non-null cursor may still yield an EMPTY
+   * page on a backend that paginates by scanning (e.g. Convex with a filter,
+   * which reports "more to scan" after the last match), so never treat a full
+   * page as the last one; only `null` is authoritative.
+   */
+  readonly nextCursor: Cursor | null;
+}
+
 export interface DocumentStore<S extends StoreSchema = AnySchema> {
   readonly capabilities: Capabilities;
 
@@ -201,6 +248,24 @@ export interface DocumentStore<S extends StoreSchema = AnySchema> {
    * not the contract.
    */
   get<T = unknown>(collection: string, id: DocumentId): Promise<Result<T | null>>;
+
+  /**
+   * List a collection in creation order, filtered and cursor-paginated. Every
+   * returned item carries a portable `_id: DocumentId`, so a listed item can be
+   * passed straight back to `get`/`patch`/`remove`.
+   *
+   * "Creation order" is each backend's insertion order; how TIES are broken is
+   * adapter-specific (Supabase breaks equal timestamps by primary key, not
+   * insertion order), so order between items created in the same instant is not
+   * guaranteed to match across backends. Pagination is always stable regardless.
+   *
+   * Filtering returns correct results on every backend; on a backend where
+   * `efficientFilterRequiresIndex` is true an unindexed filter SCANS (a
+   * performance trait, not a correctness one). Arbitrary-field sorting, joins,
+   * and aggregation are out of scope; reach them via `native()`.
+   */
+  list<T = unknown>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>>;
+
   insert<T = Record<string, unknown>>(collection: string, value: T): Promise<Result<DocumentId>>;
   patch<T = Record<string, unknown>>(
     collection: string,

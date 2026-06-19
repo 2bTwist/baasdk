@@ -19,6 +19,7 @@ import {
   type Backend,
   type Capabilities,
   type CredentialAuth,
+  type Cursor,
   type DocumentId,
   type DocumentStore,
   type ErrorCode,
@@ -26,6 +27,9 @@ import {
   type FileHandle,
   type FileStore,
   type Identity,
+  type ListOptions,
+  type ListPage,
+  type ListScalar,
   type OAuthOptions,
   type OAuthResult,
   ok,
@@ -35,6 +39,7 @@ import {
   type TokenFetcher,
   type Unsubscribe,
   type UploadOptions,
+  type WhereCondition,
 } from "@baas/core";
 
 // ---------------------------------------------------------------------------
@@ -183,6 +188,40 @@ const DEFAULT_CAPABILITIES: Capabilities = {
 type QueryName<S extends StoreSchema> = keyof S["queries"] & string;
 type MutationName<S extends StoreSchema> = keyof S["mutations"] & string;
 
+// list() helpers: portable filtering/ordering over in-memory rows.
+
+/** Ordering for gt/gte/lt/lte: numeric when both numbers, else lexical. */
+const cmp = (a: unknown, b: ListScalar): number => {
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  const sa = String(a);
+  const sb = String(b);
+  return sa < sb ? -1 : sa > sb ? 1 : 0;
+};
+
+const matchesWhere = (row: Record<string, unknown>, where: readonly WhereCondition[]): boolean =>
+  where.every(([field, op, value]) => {
+    const a = row[field];
+    switch (op) {
+      case "eq":
+        return a === value;
+      case "neq":
+        return a !== value;
+      case "gt":
+        return cmp(a, value) > 0;
+      case "gte":
+        return cmp(a, value) >= 0;
+      case "lt":
+        return cmp(a, value) < 0;
+      case "lte":
+        return cmp(a, value) <= 0;
+      default:
+        return false; // unreachable for ListOp; satisfies control-flow analysis
+    }
+  });
+
+/** The monotonic counter embedded in a memory `_id` (`collection:counter`). */
+const counterOf = (id: string): number => Number(id.slice(id.lastIndexOf(":") + 1));
+
 class MemoryDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
   constructor(
     private readonly db: Database,
@@ -256,6 +295,37 @@ class MemoryDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
   async get<T = unknown>(collection: string, id: DocumentId): Promise<Result<T | null>> {
     try {
       return ok(this.db.get<T>(collection, id));
+    } catch (e) {
+      return toErr(e);
+    }
+  }
+
+  async list<T = Record_>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>> {
+    try {
+      const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
+      const where = opts?.where ?? [];
+      const desc = opts?.order === "desc";
+      // db.all yields rows in insertion (creation) order, each as { _id, ...value }.
+      const rows = this.db
+        .all<Record_ & { _id: DocumentId }>(collection)
+        .filter((r) => matchesWhere(r, where));
+      if (desc) rows.reverse();
+      // Keyset by the monotonic counter so pagination survives deletions.
+      const after = opts?.cursor ? counterOf(opts.cursor) : null;
+      if (after !== null && Number.isNaN(after)) {
+        return err({ code: "validation", message: "invalid cursor" });
+      }
+      const tail =
+        after === null
+          ? rows
+          : rows.filter((r) => {
+              const rc = counterOf(r._id);
+              return desc ? rc < after : rc > after;
+            });
+      const items = tail.slice(0, limit);
+      const last = items.at(-1);
+      const nextCursor = tail.length > limit && last ? (last._id as unknown as Cursor) : null;
+      return ok({ items: items as unknown as T[], nextCursor });
     } catch (e) {
       return toErr(e);
     }
