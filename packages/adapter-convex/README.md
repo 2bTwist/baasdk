@@ -28,7 +28,8 @@ and upgrade through `pnpm`.
 
 | Helper | Convex primitive | Port use |
 |--------|------------------|----------|
-| `insert` / `get` / `list` / `patch` / `remove` | `ctx.db.*` (table-name-first) | `DocumentStore` direct CRUD |
+| `insert` / `get` / `patch` / `remove` | `ctx.db.*` (table-name-first) | `DocumentStore` direct CRUD |
+| `list` | `ctx.db.query().filter().order().paginate()` | `DocumentStore.list` (creation-order, filtered, cursor-paginated) |
 | `whoami` | `ctx.auth.getUserIdentity()` | `AuthProvider.getIdentity` |
 | `generateUploadUrl` / `getFileUrl` / `deleteFile` | `ctx.storage.*` | `FileStore` |
 

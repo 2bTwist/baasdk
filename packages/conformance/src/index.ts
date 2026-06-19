@@ -15,8 +15,11 @@ import {
   type Backend,
   CAPABILITY_KEYS,
   type Capabilities,
+  type Cursor,
   type DocumentId,
   isOk,
+  type ListOptions,
+  type ListPage,
   type Result,
   type StoreSchema,
   supportsCredentials,
@@ -207,6 +210,143 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         const id = expectOk(await backend.store.insert("notes", { body, pinned: false }));
         const fetched = expectOk(await backend.store.get<{ body: string }>("notes", id));
         expect(fetched?.body).toBe(body);
+      });
+    });
+
+    // -- list(): portable filter + creation-order + cursor pagination ------
+
+    describe("list()", () => {
+      interface ItemRow {
+        readonly _id: DocumentId;
+        readonly n: number;
+        readonly tag: string;
+        readonly nilable: string | null;
+        readonly flag: boolean;
+      }
+      // Standard seed: five items inserted in order, all but the last with a NULL
+      // `nilable`; `flag` is true on even n. Sequential awaits make creation order
+      // well-defined (distinct timestamps on a network-backed adapter).
+      const seed = async (): Promise<void> => {
+        await insertItem(1, "a", null);
+        await insertItem(2, "b", null);
+        await insertItem(3, "a", null);
+        await insertItem(4, "c", null);
+        await insertItem(5, "b", "x");
+      };
+      const insertItem = async (n: number, tag: string, nilable: string | null): Promise<void> => {
+        expectOk(await backend.store.insert("items", { n, tag, nilable, flag: n % 2 === 0 }));
+      };
+      const ns = (page: { items: ReadonlyArray<ItemRow> }): number[] => page.items.map((i) => i.n);
+      const list = (opts?: ListOptions) => backend.store.list<ItemRow>("items", opts);
+
+      it("lists a collection in creation order, every item carrying _id", async () => {
+        await seed();
+        const page = expectOk(await list());
+        expect(ns(page)).toEqual([1, 2, 3, 4, 5]);
+        expect(page.nextCursor).toBeNull();
+        for (const item of page.items) expect(typeof item._id).toBe("string");
+      });
+
+      it("orders descending when asked", async () => {
+        await seed();
+        expect(ns(expectOk(await list({ order: "desc" })))).toEqual([5, 4, 3, 2, 1]);
+      });
+
+      it("filters with eq across the six operators", async () => {
+        await seed();
+        expect(ns(expectOk(await list({ where: [["tag", "eq", "a"]] })))).toEqual([1, 3]);
+        expect(ns(expectOk(await list({ where: [["n", "neq", 3]] })))).toEqual([1, 2, 4, 5]);
+        expect(ns(expectOk(await list({ where: [["n", "gt", 3]] })))).toEqual([4, 5]);
+        expect(ns(expectOk(await list({ where: [["n", "gte", 3]] })))).toEqual([3, 4, 5]);
+        expect(ns(expectOk(await list({ where: [["n", "lt", 3]] })))).toEqual([1, 2]);
+        expect(ns(expectOk(await list({ where: [["n", "lte", 2]] })))).toEqual([1, 2]);
+      });
+
+      it("filters on null with eq / neq", async () => {
+        await seed();
+        expect(ns(expectOk(await list({ where: [["nilable", "eq", null]] })))).toEqual([
+          1, 2, 3, 4,
+        ]);
+        expect(ns(expectOk(await list({ where: [["nilable", "neq", null]] })))).toEqual([5]);
+      });
+
+      it("AND-combines multiple conditions", async () => {
+        await seed();
+        expect(
+          ns(
+            expectOk(
+              await list({
+                where: [
+                  ["tag", "eq", "b"],
+                  ["n", "gt", 2],
+                ],
+              }),
+            ),
+          ),
+        ).toEqual([5]);
+      });
+
+      it("walks the whole set via the cursor with no dupes or skips", async () => {
+        await seed();
+        const seen: number[] = [];
+        let next: Cursor | null = null;
+        let guard = 0;
+        do {
+          const page: ListPage<ItemRow> = expectOk(await list({ limit: 2, cursor: next }));
+          seen.push(...ns(page));
+          next = page.nextCursor;
+          if (++guard > 10) throw new Error("pagination did not terminate");
+        } while (next !== null);
+        expect(seen).toEqual([1, 2, 3, 4, 5]);
+      });
+
+      it("paginates a filtered, ordered query", async () => {
+        await seed();
+        // tag "b" => n 2 and 5; desc => [5, 2], one per page. Follow the cursor
+        // until null, tolerating an empty trailing page: a scan-based backend
+        // (Convex with a filter) may return a non-null cursor after the last
+        // MATCH, then an empty final page. The portable contract is "loop until
+        // nextCursor is null", which holds on every backend.
+        const collected: number[] = [];
+        let next: Cursor | null = null;
+        let guard = 0;
+        do {
+          const page: ListPage<ItemRow> = expectOk(
+            await list({ where: [["tag", "eq", "b"]], order: "desc", limit: 1, cursor: next }),
+          );
+          collected.push(...ns(page));
+          next = page.nextCursor;
+          if (++guard > 10) throw new Error("pagination did not terminate");
+        } while (next !== null);
+        expect(collected).toEqual([5, 2]);
+      });
+
+      it("returns an empty page (null cursor) for an empty collection", async () => {
+        const page = expectOk(await list());
+        expect(page.items).toEqual([]);
+        expect(page.nextCursor).toBeNull();
+      });
+
+      it("filters on a boolean field", async () => {
+        await seed();
+        expect(ns(expectOk(await list({ where: [["flag", "eq", true]] })))).toEqual([2, 4]);
+        expect(ns(expectOk(await list({ where: [["flag", "eq", false]] })))).toEqual([1, 3, 5]);
+      });
+
+      it("a listed item's _id round-trips through get", async () => {
+        await seed();
+        const first = expectOk(await list({ limit: 1 })).items[0];
+        expect(first).toBeDefined();
+        if (!first) return;
+        const fetched = expectOk(await backend.store.get<ItemRow>("items", first._id));
+        expect(fetched?.n).toBe(first.n);
+      });
+
+      it("returns an error Result (never throws) for a malformed cursor", async () => {
+        await seed();
+        const bad = "not-a-real-cursor" as unknown as Cursor;
+        const r = await backend.store.list<ItemRow>("items", { cursor: bad });
+        expect(r.ok).toBe(false);
       });
     });
 

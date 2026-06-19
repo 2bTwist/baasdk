@@ -5,6 +5,7 @@ The first real adapter. Implements the `@baas/core` ports over Supabase:
 | Port | Supabase mapping |
 |------|------------------|
 | `DocumentStore` direct CRUD | PostgREST (`from(table).select/insert/update/delete`) |
+| `DocumentStore` `list` | PostgREST keyset pagination on `(timestampColumn, primaryKey)` |
 | `DocumentStore` named ops (`run`/`mutate`) | app-supplied functions over the client (per-backend, like the in-memory adapter) |
 | `subscribe` | one-shot by default; live updates when a `realtime` watch is declared (`reactiveQueries` flips true) |
 | `AuthProvider` + `CredentialAuth` | Supabase Auth (`managesCredentials: true`) |
@@ -43,6 +44,22 @@ Named operations are per-backend by design: the portable surface is
 the calling convention + Result/capability shape, not the query implementations.
 Rich PostgREST features (embedded joins, aggregates, RLS-aware Realtime) are
 reached through `backend.store.native()` — not added to the core contract.
+
+## Listing
+
+`store.list(collection, { where, order, limit, cursor })` returns a page in
+creation order with a cursor. Supabase has no implicit creation order, so the
+adapter keyset-paginates on `(timestampColumn, primaryKey)`. `timestampColumn`
+defaults to `"created_at"`, configure it if your tables use a different column:
+
+```ts
+createSupabaseBackend({ url, key, queries: {}, mutations: {}, timestampColumn: "inserted_at" });
+```
+
+The column must exist on every listed table (it backs both ordering and the
+keyset cursor). The six filter operators map to PostgREST `.eq/.neq/.gt/.gte/.lt/
+.lte`; `eq`/`neq` against `null` use `.is`/`.not.is`. Loop until `nextCursor` is
+`null`.
 
 ## Live updates (Realtime)
 

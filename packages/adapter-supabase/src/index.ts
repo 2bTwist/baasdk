@@ -24,6 +24,7 @@ import {
   type BackendError,
   type Capabilities,
   type CredentialAuth,
+  type Cursor,
   type DocumentId,
   type DocumentStore,
   type ErrorCode,
@@ -31,6 +32,10 @@ import {
   type FileHandle,
   type FileStore,
   type Identity,
+  type ListOp,
+  type ListOptions,
+  type ListPage,
+  type ListScalar,
   type OAuthOptions,
   type OAuthResult,
   ok,
@@ -81,6 +86,12 @@ export interface SupabaseConfig<S extends StoreSchema = AnySchema> {
   readonly key?: string;
   /** Primary-key column used by direct CRUD. Default `"id"`. */
   readonly primaryKey?: string;
+  /**
+   * Column establishing creation order for `list` keyset pagination. Default
+   * `"created_at"`. `list` orders by `(timestampColumn, primaryKey)` so the order
+   * is stable even when timestamps tie. The column must exist on listed tables.
+   */
+  readonly timestampColumn?: string;
   /** Default Storage bucket for the FileStore. */
   readonly bucket?: string;
   readonly queries: {
@@ -131,12 +142,70 @@ const SUPABASE_CAPABILITIES: Capabilities = {
 type QueryName<S extends StoreSchema> = keyof S["queries"] & string;
 type MutationName<S extends StoreSchema> = keyof S["mutations"] & string;
 
+// list() helpers: translate the portable filter/keyset onto PostgREST. The
+// builder is typed via ReturnType so the dynamic filter loop stays type-safe.
+type SbFilter = ReturnType<ReturnType<SupabaseClient["from"]>["select"]>;
+
+/** Apply one portable filter condition. null uses `.is` / `.not.is`, not `.eq`. */
+const applyOp = (q: SbFilter, field: string, op: ListOp, value: ListScalar): SbFilter => {
+  if (value === null) {
+    if (op === "eq") return q.is(field, null);
+    if (op === "neq") return q.not(field, "is", null);
+  }
+  switch (op) {
+    case "eq":
+      return q.eq(field, value);
+    case "neq":
+      return q.neq(field, value);
+    case "gt":
+      return q.gt(field, value);
+    case "gte":
+      return q.gte(field, value);
+    case "lt":
+      return q.lt(field, value);
+    case "lte":
+      return q.lte(field, value);
+    default:
+      return q;
+  }
+};
+
+/** Keyset on (timestampColumn, pk): (tc,pk) > (ts,id) for asc, < for desc. */
+const applyKeyset = (
+  q: SbFilter,
+  asc: boolean,
+  tc: string,
+  pk: string,
+  ts: string,
+  id: string,
+): SbFilter => {
+  const op = asc ? "gt" : "lt";
+  // Double-quote the value AND backslash-escape embedded `\` and `"`: PostgREST's
+  // .or() grammar requires escaping inside a quoted value, otherwise a value
+  // containing `"` could break out and inject filter conditions. Values normally
+  // come from server-minted cursors, but the cursor is caller-supplied, so treat
+  // it as untrusted.
+  const qv = (v: string): string => `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+  return q.or(`${tc}.${op}.${qv(ts)},and(${tc}.eq.${qv(ts)},${pk}.${op}.${qv(id)})`);
+};
+
+const encodeCursor = (ts: unknown, id: unknown): Cursor =>
+  btoa(JSON.stringify({ t: String(ts), i: String(id) })) as Cursor;
+const decodeCursor = (c: Cursor): { ts: string; id: string } => {
+  const parsed = JSON.parse(atob(c)) as unknown;
+  const t = (parsed as { t?: unknown }).t;
+  const i = (parsed as { i?: unknown }).i;
+  if (typeof t !== "string" || typeof i !== "string") throw new Error("invalid cursor");
+  return { ts: t, id: i };
+};
+
 class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
   constructor(
     private readonly sb: SupabaseClient,
     private readonly config: SupabaseConfig<S>,
     readonly capabilities: Capabilities,
     private readonly pk: string,
+    private readonly tc: string,
   ) {}
 
   async run<K extends QueryName<S>>(
@@ -316,6 +385,36 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
       .maybeSingle();
     if (error) return err(toBackendError(error));
     return ok((data as T | null) ?? null);
+  }
+
+  async list<T = unknown>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>> {
+    try {
+      const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
+      const asc = (opts?.order ?? "asc") === "asc";
+      let q: SbFilter = this.sb.from(collection).select("*");
+      for (const [field, op, value] of opts?.where ?? []) q = applyOp(q, field, op, value);
+      if (opts?.cursor) {
+        // decodeCursor throws on a malformed/tampered cursor; the catch turns
+        // that into an err Result rather than letting list() reject.
+        const { ts, id } = decodeCursor(opts.cursor);
+        q = applyKeyset(q, asc, this.tc, this.pk, ts, id);
+      }
+      // Stable total order, then fetch one extra row to detect a next page.
+      const { data, error } = await q
+        .order(this.tc, { ascending: asc })
+        .order(this.pk, { ascending: asc })
+        .limit(limit + 1);
+      if (error) return err(toBackendError(error));
+      const rows = (data ?? []) as Array<Record<string, unknown>>;
+      const hasMore = rows.length > limit;
+      const pageRows = hasMore ? rows.slice(0, limit) : rows;
+      const items = pageRows.map((r) => ({ _id: String(r[this.pk]) as DocumentId, ...r }));
+      const last = pageRows.at(-1);
+      const nextCursor = hasMore && last ? encodeCursor(last[this.tc], last[this.pk]) : null;
+      return ok({ items: items as unknown as T[], nextCursor });
+    } catch (e) {
+      return err(toBackendError(e));
+    }
   }
 
   async insert<T = Record<string, unknown>>(
@@ -588,10 +687,11 @@ export function createSupabaseBackend<S extends StoreSchema = AnySchema>(
     ...config.capabilities,
   };
   const pk = config.primaryKey ?? "id";
+  const tc = config.timestampColumn ?? "created_at";
   const bucket = config.bucket ?? "conformance";
   return {
     capabilities,
-    store: new SupabaseDocumentStore<S>(sb, config, capabilities, pk),
+    store: new SupabaseDocumentStore<S>(sb, config, capabilities, pk, tc),
     auth: new SupabaseAuth(sb, capabilities.managesCredentials),
     files: new SupabaseFileStore(sb, bucket, capabilities.fileStorage),
   };

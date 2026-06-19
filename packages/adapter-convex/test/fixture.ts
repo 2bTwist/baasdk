@@ -35,7 +35,7 @@ const testing = anyApi.testing as unknown as {
 export async function makeConvexConformanceBackend(): Promise<Backend<ConformanceSchema>> {
   const client = new ConvexClient(url as string);
   // Reset persistent state: each test must see an empty backend.
-  await client.mutation(testing.reset, { tables: ["todos", "notes"] });
+  await client.mutation(testing.reset, { tables: ["todos", "notes", "items"] });
 
   return createConvexBackend<ConformanceSchema>({
     client,

@@ -37,6 +37,12 @@ interface SupabaseConfig<S extends StoreSchema = AnySchema> {
     readonly key?: string;
     /** Primary-key column used by direct CRUD. Default `"id"`. */
     readonly primaryKey?: string;
+    /**
+     * Column establishing creation order for `list` keyset pagination. Default
+     * `"created_at"`. `list` orders by `(timestampColumn, primaryKey)` so the order
+     * is stable even when timestamps tie. The column must exist on listed tables.
+     */
+    readonly timestampColumn?: string;
     /** Default Storage bucket for the FileStore. */
     readonly bucket?: string;
     readonly queries: {

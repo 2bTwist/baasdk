@@ -111,7 +111,7 @@ never inspects it.
 ## Step 2: `DocumentStore`
 
 This is the largest port. Implement `run`, `subscribe`, `mutate`, the four by-id
-CRUD methods, and `native()`. The suite
+CRUD methods, `list`, and `native()`. The suite
 (`packages/conformance/src/index.ts`) pins these behaviors:
 
 | Behavior the suite asserts | What your adapter must do |
@@ -153,6 +153,26 @@ delivery is mandatory; the live updates are the capability. The suite also check
 that unsubscribing (even synchronously, before the first delivery settles) never
 produces an extra delivery, and that an unknown operation is delivered as an
 error `Result`, not thrown.
+
+### `list`
+
+`list(collection, opts?)` returns `{ items, nextCursor }`: a page of a collection
+in **creation order**, filtered and cursor-paginated. The suite pins:
+
+- **Every item carries a portable `_id`** so a listed row is usable with
+  `get`/`patch`/`remove`. If your backend's rows do not natively expose `_id`
+  (Supabase keys on its primary key), map it on.
+- **Six filter operators only** (`eq/neq/gt/gte/lt/lte`, AND-combined). `eq`/`neq`
+  against `null` is an IS NULL / IS NOT NULL check, not value equality. Anything
+  richer (text search, `in`, arrays) is out of contract, reach it via `native()`.
+- **Creation-order direction only** (`asc`/`desc`), never an arbitrary sort field
+  (Convex cannot order by a non-indexed field in a generic helper).
+- **Cursor pagination, never offset.** Keyset on a stable total order so pages do
+  not drift under concurrent writes. The cursor is an opaque branded `Cursor`.
+- **Loop until `nextCursor` is `null`.** A non-null cursor may yield an EMPTY
+  trailing page on a scan-based backend (Convex applies a filter after the page
+  scan), so a full page is never proof it is the last one; only `null` is.
+- **Default page size 50, clamped to 200.**
 
 ## Step 3: `AuthProvider`
 
