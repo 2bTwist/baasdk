@@ -197,7 +197,7 @@ describe("adapter-supabase reactive subscribe()", () => {
     expect(received).toHaveLength(1);
     const r = at(received, 0);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.code).toBe("validation");
+    if (!r.ok) expect(r.error.code).toBe("unsupported_capability");
     expect(fake.channels).toHaveLength(0); // no channel opened
   });
 
@@ -232,5 +232,89 @@ describe("adapter-supabase reactive subscribe()", () => {
     expect(received).toHaveLength(1);
     expect(dataOf(at(received, 0))).toBe("v0");
     expect(fake.channels).toHaveLength(0);
+  });
+
+  it("delivers the initial snapshot even when unsubscribed synchronously", async () => {
+    // Drop-the-guard fix: the always-one-delivery contract must hold even if the
+    // caller tears down before the initial query resolves (matches the in-memory
+    // reference adapter). The generation guard still prevents stale overwrites.
+    const received: Array<Result<string>> = [];
+    const backend = makeBackend({ fake, watch: true });
+    const unsub = backend.store.subscribe("listTodos", {}, (r) => received.push(r));
+    unsub(); // synchronous teardown, before the initial query promise resolves
+    await flush();
+    expect(received).toHaveLength(1);
+    expect(dataOf(at(received, 0))).toBe("v0");
+  });
+
+  it("re-runs on every SUBSCRIBED (reconnect catch-up), not just the first", async () => {
+    let calls = 0;
+    queryImpl = () => {
+      calls += 1;
+      return Promise.resolve(`v${calls}`);
+    };
+    const received: Array<Result<string>> = [];
+    const backend = makeBackend({ fake, watch: true });
+    backend.store.subscribe("listTodos", {}, (r) => received.push(r));
+    await flush(); // initial (calls -> 1)
+    const channel = at(fake.channels, 0);
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+    await settleDebounce(); // first catch-up (calls -> 2)
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED); // simulate a reconnect
+    await settleDebounce(); // reconnect catch-up (calls -> 3)
+    expect(calls).toBe(3);
+  });
+
+  it("latches channel errors: a streak of failures delivers exactly one error", async () => {
+    const received: Array<Result<string>> = [];
+    const backend = makeBackend({ fake, watch: true });
+    backend.store.subscribe("listTodos", {}, (r) => received.push(r));
+    await flush();
+    const channel = at(fake.channels, 0);
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR);
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR);
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.TIMED_OUT);
+    await flush();
+    expect(received.filter((r) => !r.ok)).toHaveLength(1);
+  });
+
+  it("re-arms the error latch after a SUBSCRIBED recovery", async () => {
+    const received: Array<Result<string>> = [];
+    const backend = makeBackend({ fake, watch: true });
+    backend.store.subscribe("listTodos", {}, (r) => received.push(r));
+    await flush();
+    const channel = at(fake.channels, 0);
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR); // error 1
+    await flush();
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED); // recover, re-arm latch
+    await settleDebounce();
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR); // error 2
+    await flush();
+    expect(received.filter((r) => !r.ok)).toHaveLength(2);
+  });
+
+  it("treats an unexpected CLOSED as a loud error", async () => {
+    const received: Array<Result<string>> = [];
+    const backend = makeBackend({ fake, watch: true });
+    backend.store.subscribe("listTodos", {}, (r) => received.push(r));
+    await flush();
+    at(fake.channels, 0).setStatus(REALTIME_SUBSCRIBE_STATES.CLOSED);
+    await flush();
+    const last = at(received, received.length - 1);
+    expect(last.ok).toBe(false);
+    if (!last.ok) expect(last.error.code).toBe("network");
+  });
+
+  it("ignores a CLOSED that follows our own unsubscribe", async () => {
+    const received: Array<Result<string>> = [];
+    const backend = makeBackend({ fake, watch: true });
+    const unsub = backend.store.subscribe("listTodos", {}, (r) => received.push(r));
+    await flush();
+    const channel = at(fake.channels, 0);
+    const countAtUnsub = received.length;
+    unsub();
+    channel.setStatus(REALTIME_SUBSCRIBE_STATES.CLOSED); // teardown-driven close
+    await flush();
+    expect(received).toHaveLength(countAtUnsub); // no error delivered
   });
 });

@@ -170,11 +170,14 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     // says "live", so silence would be a lie. Use run() for a deliberate one-shot.
     const watch = this.config.realtime?.[operation];
     if (!watch) {
+      // reactiveQueries is a single global flag, but reactivity is per-query:
+      // this query has no watch, so live updates are unavailable for it. That is
+      // a capability gap, not a bad argument, hence unsupported_capability.
       queueMicrotask(() => {
         onChange(
           err({
-            code: "validation",
-            message: `subscribe("${operation}") requires a realtime watch; none configured`,
+            code: "unsupported_capability",
+            message: `subscribe("${operation}") has no realtime watch configured; declare one in the adapter's \`realtime\` config, or use run() for a one-shot read`,
           }),
         );
       });
@@ -190,15 +193,20 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     let dirty = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let closed = false;
+    let errored = false;
     const DEBOUNCE_MS = 250;
 
-    const deliver = (myGen: number): void => {
+    const deliver = (myGen: number, force = false): void => {
       void (async () => {
         try {
           const data = await fn(this.sb, args);
-          if (!closed && myGen === gen) onChange(ok(data));
+          // The generation guard prevents a slow older re-run from overwriting a
+          // newer result. `force` (the initial snapshot only) additionally
+          // ignores teardown, so the always-one-delivery contract holds even when
+          // the caller unsubscribes synchronously.
+          if ((force || !closed) && myGen === gen) onChange(ok(data));
         } catch (e) {
-          if (!closed && myGen === gen) onChange(err(toBackendError(e)));
+          if ((force || !closed) && myGen === gen) onChange(err(toBackendError(e)));
         }
       })();
     };
@@ -219,8 +227,9 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     };
 
     // Immediate initial snapshot, satisfies the always-one-delivery contract
-    // even if the realtime channel never establishes.
-    deliver(++gen);
+    // even if the realtime channel never establishes or the caller unsubscribes
+    // synchronously (force = true).
+    deliver(++gen, true);
 
     const channel = this.sb.channel(`baas:${operation}:${crypto.randomUUID()}`);
     for (const table of watch.tables) {
@@ -230,18 +239,29 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     }
     channel.subscribe((status) => {
       if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
-        // Catch-up: a change between the initial snapshot and the channel going
-        // live would otherwise be missed; re-run once now that we're subscribed.
+        // SUBSCRIBED fires on the initial join AND on every reconnect after a
+        // drop. Re-running each time is deliberate: it closes the gap of changes
+        // missed while disconnected, and the generation counter keeps results
+        // ordered. Recovery also re-arms the error latch below.
+        errored = false;
         schedule();
       } else if (
         status === REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR ||
-        status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT
+        status === REALTIME_SUBSCRIBE_STATES.TIMED_OUT ||
+        status === REALTIME_SUBSCRIBE_STATES.CLOSED
       ) {
-        // Loud failure: Realtime not enabled on the table, or auth/connection
-        // failure. Never silently fall back to one-shot.
-        if (!closed) {
+        // Loud failure, never a silent fall-back to one-shot. supabase-js
+        // re-fires these across the channel's life (one per failed rejoin), so
+        // latch to report the first failure in a streak, not every callback. A
+        // CLOSED from our own teardown is gated by `closed`. CHANNEL_ERROR is
+        // most often "Realtime not enabled / table not in the publication".
+        if (!closed && !errored) {
+          errored = true;
           onChange(
-            err({ code: "network", message: `realtime channel ${status} for "${operation}"` }),
+            err({
+              code: "network",
+              message: `realtime channel ${status} for "${operation}" (check Realtime is enabled for the watched table)`,
+            }),
           );
         }
       }

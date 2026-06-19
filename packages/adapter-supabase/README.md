@@ -75,6 +75,15 @@ publication (see `supabase/migrations/0002_realtime.sql` for the conformance
 `todos` table). On a persisted local stack apply it with `supabase migration up`;
 CI applies it on a fresh `supabase start`.
 
+**RLS trap.** Supabase Realtime enforces RLS using the subscribing client's role.
+With the anon key and RLS enabled, `postgres_changes` only fires for rows the
+user's `SELECT` policy allows; if no policy grants access, the channel still
+reaches `SUBSCRIBED` and then delivers **nothing** (no error). So a missing RLS
+policy degrades live updates to silent no-ops. Subscribe with a client whose role
+is authorized to read the watched tables, and add a `SELECT` policy for that role.
+The conformance suite uses the service-role key (RLS bypassed), so it does not
+exercise this path.
+
 **Scaling caveat.** Supabase per-client `postgres_changes` fans out under RLS
 (one write with N subscribers triggers N authorized reads), and re-running the
 query multiplies that. For high-write tables, prefer `native()` Realtime with a
