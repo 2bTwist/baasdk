@@ -29,6 +29,7 @@
     "typecheck:examples": "tsc -p examples/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "demo": "node scripts/demo.mjs",
     "lint": "biome check .",
     "lint:boundaries": "depcruise packages --config .dependency-cruiser.cjs",
     "lint:types": "eslint packages examples --max-warnings=0",
