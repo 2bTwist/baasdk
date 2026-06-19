@@ -5,7 +5,16 @@
 > capability flags and a typed `.native()` escape hatch. The same conformance
 > suite runs against every adapter, live in CI.
 
-A thin, honest abstraction over the **genuine common subset** of backend
+> [!WARNING]
+> **This is a weekend project, not a product.** I built baasdk to mess around with
+> my own local apps and to learn from building it, not for production and not for
+> anything you'd ship or trust with real data yet. Please don't reach for it on a
+> serious project; it hasn't earned that. That said, I'm still working on it:
+> issues and contributions are welcome, and I'll keep testing and hardening it over
+> time. If it ever gets stable enough to actually rely on, I'll update this note.
+> Until then, treat it as a sandbox.
+
+A thin abstraction over the **genuine common subset** of backend
 services (document/KV CRUD, auth, file storage), with explicit escape hatches
 for everything else. The abstraction is never richer than the intersection of
 what all supported backends can do; anything provider-specific is reached
@@ -80,6 +89,26 @@ the calling code is unchanged.
 
 [quickstart-test]: packages/adapter-memory/test/quickstart.test.ts
 
+## Run the demo locally
+
+There's an interactive demo: one todo app, the same code on two backends, with a
+one-click migrate between them.
+
+```bash
+pnpm install && pnpm demo   # then open http://localhost:8788
+```
+
+It runs **entirely in-memory** by default (no database, nothing to set up, nothing
+saved). To point it at your own local Supabase + Convex instead, see
+[`demo/README.md`](demo/README.md). The in-memory build is also what gets published
+to GitHub Pages, so a public demo can never touch a real database.
+
+**Setting it up with a coding agent?** Paste this:
+
+> Clone https://github.com/2bTwist/baasdk, run `pnpm install` then `pnpm demo`, and
+> open http://localhost:8788. It runs in-memory, no database needed. Confirm you can
+> add todos, check them off, and switch providers to migrate the data across.
+
 ## Status
 
 The contract, the in-memory reference adapter, and **two structurally-different
@@ -105,8 +134,8 @@ directions by the suite. See the generated **[capability matrix](docs/CAPABILITI
 
 **Decision rule:** baasdk pays off exactly when the cost of being locked to one
 backend exceeds the cost of the portable-surface tax. Below that line it is pure
-tax, and the honest answer is to use the provider SDK directly. State it plainly,
-the honesty is the point.
+tax, and below that line you're better off using the provider SDK directly. That
+is a perfectly good outcome, not a failure of the tool.
 
 **Use it when:**
 

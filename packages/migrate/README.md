@@ -43,7 +43,7 @@ It is **fail-fast**: the first `list`/`insert`/`patch` error stops the run and
 returns `{ ok: false, error, ... }` with the partial `idMap` intact (never throws
 on a backend error). Re-running resumes from where it stopped.
 
-## What it is NOT (the honesty is the point)
+## What it is NOT
 
 - **Not a live toggle / sync.** After a migration the target is the source of
   truth and the origin is stale. Continuous "one dataset in both backends" is the

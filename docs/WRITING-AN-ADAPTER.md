@@ -39,7 +39,7 @@ Four ideas explain every contract below.
    `false` in its `Capabilities` descriptor. The suite reads those flags and
    asserts a behavior only when you claim it. A capability you cannot honor is a
    `false`, not a half-working method.
-4. **`native()` is the honest escape hatch.** Joins, aggregations, SQL, and
+4. **`native()` is the escape hatch.** Joins, aggregations, SQL, and
    provider-specific power are deliberately out of the core contract. Each port
    exposes `native()` returning the underlying client, typed per adapter, so
    callers reach that power explicitly rather than having it smuggled into the
@@ -212,7 +212,7 @@ removed handle to return `ok(null)`. `FileHandle` is opaque like `DocumentId`;
 Supabase encodes `bucket + path` into it, Convex uses a storage id. Callers treat
 it as a token.
 
-## Step 5: declare honest `Capabilities`
+## Step 5: declare accurate `Capabilities`
 
 Seven flags, each a boolean, each justified by a real divergence between backends.
 Declare a static descriptor and let config override it (some adapters model a
@@ -231,7 +231,7 @@ const SUPABASE_CAPABILITIES: Capabilities = {
 };
 ```
 
-The honesty rule: a flag is `true` only if your adapter genuinely delivers that
+The rule: a flag is `true` only if your adapter genuinely delivers that
 behavior through the portable surface. `serverSideJoins` and `aggregations` are
 `true` for Supabase because the power exists, but it is reached via `native()`,
 not the core contract; they are descriptor-only signals to callers, not behaviors
@@ -325,7 +325,7 @@ commit; that is what makes "portable" a verified claim rather than an assertion.
 - `pnpm verify` is green: Biome (zero warnings), boundaries, type-aware lint
   (including `must-use-result`), typecheck, build, tests. See the gate table in
   [CONTRIBUTING.md](../CONTRIBUTING.md#the-gates).
-- Capabilities are honest: every `true` is a behavior you actually deliver
+- Capabilities are accurate: every `true` is a behavior you actually deliver
   through the portable surface; everything else is `false` with `native()` as the
   escape hatch.
 - A changeset accompanies the new package (`pnpm changeset`).

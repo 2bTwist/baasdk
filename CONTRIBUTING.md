@@ -77,7 +77,7 @@ Full walkthrough: **[docs/WRITING-AN-ADAPTER.md](docs/WRITING-AN-ADAPTER.md)**.
 The shape, in brief:
 
 1. Implement `DocumentStore`, `AuthProvider`, `FileStore`, and a `Backend`
-   factory. Declare honest `Capabilities`. Expose `.native()` on each port.
+   factory. Declare accurate `Capabilities`. Expose `.native()` on each port.
 2. Convert provider errors into the `Result` shape at the boundary; do not let
    them throw across a port method.
 3. Wire the canonical `ConformanceSchema` to your backend (see
