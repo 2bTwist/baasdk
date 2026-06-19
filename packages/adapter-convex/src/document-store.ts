@@ -43,8 +43,12 @@ export interface HelperRefs {
     "public",
     {
       collection: string;
-      where?: ReadonlyArray<{ field: string; op: string; value: string | number | boolean | null }>;
-      order?: string;
+      where?: ReadonlyArray<{
+        field: string;
+        op: string;
+        value: string | number | boolean | null | ReadonlyArray<string | number | boolean | null>;
+      }>;
+      order?: { field: string | null; dir: string };
       paginationOpts?: { numItems: number; cursor: string | null };
     },
     { page: unknown[]; isDone: boolean; continueCursor: string }
@@ -149,10 +153,17 @@ export class ConvexDocumentStore<S extends StoreSchema> implements DocumentStore
       const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
       // Serialize the portable [field, op, value] tuples into the helper's objects.
       const where = (opts?.where ?? []).map(([field, op, value]) => ({ field, op, value }));
+      // Serialize the order into { field, dir }: a field (indexed on Convex) or
+      // creation order (field null).
+      const order = opts?.order;
+      const orderArg =
+        typeof order === "object" && order !== null
+          ? { field: order.field, dir: order.direction ?? "asc" }
+          : { field: null, dir: order ?? "asc" };
       const result = await this.client.query(this.helpers.list, {
         collection,
         where,
-        order: opts?.order ?? "asc",
+        order: orderArg,
         paginationOpts: { numItems: limit, cursor: opts?.cursor ?? null },
       });
       // Convex docs already carry `_id`; no normalization needed.

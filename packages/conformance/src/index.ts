@@ -353,6 +353,32 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         await seed();
         expect(ns(expectOk(await list({ where: [["tag", "in", ["a", "c"]]] })))).toEqual([1, 3, 4]);
         expect(ns(expectOk(await list({ where: [["n", "in", [2, 4]]] })))).toEqual([2, 4]);
+        expect(ns(expectOk(await list({ where: [["tag", "in", ["a"]]] })))).toEqual([1, 3]);
+        expect(ns(expectOk(await list({ where: [["tag", "in", ["zzz"]]] })))).toEqual([]);
+        expect(ns(expectOk(await list({ where: [["tag", "in", []]] })))).toEqual([]);
+        // null in the list never matches null rows (use eq null); only n=5 has "x".
+        expect(ns(expectOk(await list({ where: [["nilable", "in", [null, "x"]]] })))).toEqual([5]);
+      });
+
+      it("orders by a numeric field numerically (not lexically) across pages", async () => {
+        // n chosen so lexical != numeric: numeric [2,3,10] but lexical ["10","2","3"].
+        await insertItem(3, "x", null);
+        await insertItem(10, "x", null);
+        await insertItem(2, "x", null);
+        expect(ns(expectOk(await list({ order: { field: "n" } })))).toEqual([2, 3, 10]);
+        // Paginate limit 1 to force the keyset across the 2 -> 10 boundary.
+        const seen: number[] = [];
+        let next: Cursor | null = null;
+        let guard = 0;
+        do {
+          const page: ListPage<ItemRow> = expectOk(
+            await list({ order: { field: "n" }, limit: 1, cursor: next }),
+          );
+          seen.push(...ns(page));
+          next = page.nextCursor;
+          if (++guard > 10) throw new Error("pagination did not terminate");
+        } while (next !== null);
+        expect(seen).toEqual([2, 3, 10]);
       });
 
       it("orders by a document field", async () => {

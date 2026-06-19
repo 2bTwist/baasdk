@@ -190,7 +190,9 @@ export type WhereCondition =
  * default). `{ field }` orders by a document field; on a backend where
  * `efficientFilterRequiresIndex` is true (Convex) this requires a matching
  * `by_<field>` index, otherwise `list` returns an `unsupported_capability` error.
- * Supabase and memory order by any field directly.
+ * Supabase and memory order by any field directly. Order by a field whose values
+ * are non-null; pagination over a column containing NULLs is undefined at the null
+ * boundary (and NULL ordering position is backend-specific).
  */
 export type ListOrder =
   | "asc"
@@ -277,8 +279,9 @@ export interface DocumentStore<S extends StoreSchema = AnySchema> {
    *
    * Filtering returns correct results on every backend; on a backend where
    * `efficientFilterRequiresIndex` is true an unindexed filter SCANS (a
-   * performance trait, not a correctness one). Arbitrary-field sorting, joins,
-   * and aggregation are out of scope; reach them via `native()`.
+   * performance trait, not a correctness one). Field ordering is supported via
+   * `order: { field }` (index-gated on Convex, see `ListOrder`); joins and
+   * aggregation remain out of scope; reach them via `native()`.
    */
   list<T = unknown>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>>;
 

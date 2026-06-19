@@ -202,7 +202,8 @@ const cmp = (a: unknown, b: ListScalar): number => {
 const matchesWhere = (row: Record<string, unknown>, where: readonly WhereCondition[]): boolean =>
   where.every(([field, op, value]) => {
     const a = row[field];
-    if (op === "in") return value.includes(a as ListScalar);
+    // `in` matches concrete values only; null is never matched (use eq/null).
+    if (op === "in") return a !== null && value.includes(a as ListScalar);
     switch (op) {
       case "eq":
         return a === value;

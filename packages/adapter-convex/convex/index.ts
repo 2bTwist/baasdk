@@ -89,59 +89,92 @@ export const get = queryGeneric({
   },
 });
 
+type ConvexScalar = string | number | boolean | null;
+
 /** Translate one portable filter condition onto a Convex filter expression. */
 const applyConvexOp = (
   b: FilterBuilder<GenericTableInfo>,
   field: string,
   op: string,
-  value: string | number | boolean | null,
+  value: ConvexScalar | ReadonlyArray<ConvexScalar>,
 ) => {
+  if (op === "in") {
+    // Convex has no native `in`; expand to an OR of equalities. null is dropped
+    // (use eq/null) to match SQL `IN` and the other adapters. An empty set matches
+    // nothing (field < field is always false).
+    const arr = (Array.isArray(value) ? (value as ReadonlyArray<ConvexScalar>) : []).filter(
+      (x) => x !== null,
+    );
+    return arr.length > 0
+      ? b.or(...arr.map((x) => b.eq(b.field(field), x)))
+      : b.lt(b.field(field), b.field(field));
+  }
   const f = b.field(field);
+  const v = value as ConvexScalar;
   switch (op) {
     case "neq":
-      return b.neq(f, value);
+      return b.neq(f, v);
     case "gt":
-      return b.gt(f, value);
+      return b.gt(f, v);
     case "gte":
-      return b.gte(f, value);
+      return b.gte(f, v);
     case "lt":
-      return b.lt(f, value);
+      return b.lt(f, v);
     case "lte":
-      return b.lte(f, value);
+      return b.lte(f, v);
     default:
-      return b.eq(f, value); // "eq"
+      return b.eq(f, v); // "eq"
   }
 };
 
+const SCALAR = v.union(v.string(), v.float64(), v.boolean(), v.null());
+
 /**
- * Portable `list`: creation-ordered (`_creationTime`), filtered, cursor-paginated.
- * Convex docs already carry `_id`, so no id normalization is needed. With no
- * `paginationOpts` it collects all (used by callers that want the whole set).
- * `.filter()` scans without an index; see `efficientFilterRequiresIndex`.
+ * Portable `list`: filtered, cursor-paginated, ordered by creation (`_creationTime`)
+ * or by a field. Field ordering uses a `by_<field>` index; a missing index is a
+ * capability gap surfaced as `unsupported_capability` (Supabase/memory order by any
+ * field directly). Convex docs already carry `_id`. With no `paginationOpts` it
+ * collects all. `.filter()` scans without an index; see `efficientFilterRequiresIndex`.
  */
 export const list = queryGeneric({
   args: {
     collection: v.string(),
     where: v.optional(
       v.array(
-        v.object({
-          field: v.string(),
-          op: v.string(),
-          value: v.union(v.string(), v.float64(), v.boolean(), v.null()),
-        }),
+        v.object({ field: v.string(), op: v.string(), value: v.union(SCALAR, v.array(SCALAR)) }),
       ),
     ),
-    order: v.optional(v.string()),
+    order: v.optional(v.object({ field: v.union(v.string(), v.null()), dir: v.string() })),
     paginationOpts: v.optional(paginationOptsValidator),
   },
   handler: async (ctx, { collection, where, order, paginationOpts }) => {
-    const base = ctx.db.query(collection);
-    const filtered =
-      where && where.length > 0
-        ? base.filter((b) => b.and(...where.map((c) => applyConvexOp(b, c.field, c.op, c.value))))
-        : base;
-    const ordered = filtered.order(order === "desc" ? "desc" : "asc");
-    return paginationOpts ? await ordered.paginate(paginationOpts) : await ordered.collect();
+    const dir = order?.dir === "desc" ? "desc" : "asc";
+    const field = order?.field ?? null;
+    const buildOrdered = () => {
+      const q = field
+        ? ctx.db.query(collection).withIndex(`by_${field}`)
+        : ctx.db.query(collection);
+      const filtered =
+        where && where.length > 0
+          ? q.filter((b) => b.and(...where.map((c) => applyConvexOp(b, c.field, c.op, c.value))))
+          : q;
+      return filtered.order(dir);
+    };
+    try {
+      const ordered = buildOrdered();
+      return paginationOpts ? await ordered.paginate(paginationOpts) : await ordered.collect();
+    } catch (e) {
+      // A missing by_<field> index throws at execution; map ONLY index-related
+      // errors so an unrelated failure in a field-ordered query keeps its real
+      // error instead of being mislabeled as a missing index.
+      if (field && /index/i.test(String(e instanceof Error ? e.message : e))) {
+        throw new ConvexError({
+          code: "unsupported_capability",
+          message: `list order by "${field}" requires a by_${field} index on "${collection}"`,
+        });
+      }
+      throw e;
+    }
   },
 });
 

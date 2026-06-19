@@ -162,11 +162,15 @@ in **creation order**, filtered and cursor-paginated. The suite pins:
 - **Every item carries a portable `_id`** so a listed row is usable with
   `get`/`patch`/`remove`. If your backend's rows do not natively expose `_id`
   (Supabase keys on its primary key), map it on.
-- **Six filter operators only** (`eq/neq/gt/gte/lt/lte`, AND-combined). `eq`/`neq`
-  against `null` is an IS NULL / IS NOT NULL check, not value equality. Anything
-  richer (text search, `in`, arrays) is out of contract, reach it via `native()`.
-- **Creation-order direction only** (`asc`/`desc`), never an arbitrary sort field
-  (Convex cannot order by a non-indexed field in a generic helper).
+- **Seven filter operators** (`eq/neq/gt/gte/lt/lte` + `in`, AND-combined). `eq`/
+  `neq` against `null` is an IS NULL / IS NOT NULL check, not value equality; `in`
+  takes an array (expand it to OR-of-eq if your backend has no native `in`).
+  Anything richer (text search, array containment) is out of contract via `native()`.
+- **Order by creation order (`asc`/`desc`) or a field (`{ field, direction }`).**
+  Field ordering is free on Supabase/memory; on a backend where
+  `efficientFilterRequiresIndex` is true (Convex), ordering by a field REQUIRES a
+  matching `by_<field>` index, and a missing one must return an
+  `unsupported_capability` error, never a silent fallback to creation order.
 - **Cursor pagination, never offset.** Keyset on a stable total order so pages do
   not drift under concurrent writes. The cursor is an opaque branded `Cursor`.
 - **Loop until `nextCursor` is `null`.** A non-null cursor may yield an EMPTY

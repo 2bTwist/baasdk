@@ -29,9 +29,14 @@ and upgrade through `pnpm`.
 | Helper | Convex primitive | Port use |
 |--------|------------------|----------|
 | `insert` / `get` / `patch` / `remove` | `ctx.db.*` (table-name-first) | `DocumentStore` direct CRUD |
-| `list` | `ctx.db.query().filter().order().paginate()` | `DocumentStore.list` (creation-order, filtered, cursor-paginated) |
+| `list` | `ctx.db.query().withIndex?().filter().order().paginate()` | `DocumentStore.list` (filtered, ordered, cursor-paginated) |
 | `whoami` | `ctx.auth.getUserIdentity()` | `AuthProvider.getIdentity` |
 | `generateUploadUrl` / `getFileUrl` / `deleteFile` | `ctx.storage.*` | `FileStore` |
+
+`list` orders by `_creationTime` by default. Ordering by a field
+(`list(c, { order: { field } })`) uses a `by_<field>` index, so the field must be
+indexed in your `schema.ts`; ordering by an unindexed field returns an
+`unsupported_capability` error rather than silently falling back.
 
 ## Security: these are PUBLIC, generic functions
 
