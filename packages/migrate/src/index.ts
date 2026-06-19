@@ -14,7 +14,7 @@
  *    sync-engine problem and deliberately out of scope (see the research doc).
  *  - NOT atomic across backends. Two systems cannot share one transaction, so a
  *    mid-run failure leaves a partial copy. The run is fail-fast and resumable:
- *    every re-minted row is stamped with `_migratedFrom: <oldId>`, so a re-run
+ *    every re-minted row is stamped with `migratedFrom: <oldId>`, so a re-run
  *    skips what already landed (mirrors `@get-convex/migrations`).
  *  - NOT a schema/DDL tool. It copies DATA into collections that already exist on
  *    the target; create the target's tables/columns first.
@@ -73,7 +73,7 @@ export interface MigrateProgress {
 export interface CollectionReport {
   /** Rows freshly inserted into the target. */
   readonly copied: number;
-  /** Rows already present on the target (matched by `_migratedFrom`) and skipped. */
+  /** Rows already present on the target (matched by `migratedFrom`) and skipped. */
   readonly skipped: number;
   /** Foreign-key fields rewritten in the relink pass. */
   readonly relinked: number;
@@ -104,8 +104,13 @@ export interface MigrateReport {
  * Stamped on every re-minted row so a re-run is idempotent (resume marker).
  * RESERVED: migrate owns this field. A source value under this name is dropped
  * before insert and replaced with the current run's source id.
+ *
+ * Deliberately has NO leading underscore: Convex rejects any user field starting
+ * with `_` ("only allowed for system fields like `_id`"), so an underscore marker
+ * would make Convex unusable as a migration target. A plain name is portable
+ * across Convex, Supabase, and the in-memory adapter.
  */
-const MARKER = "_migratedFrom";
+const MARKER = "migratedFrom";
 /** Backend system fields never carried across; the target re-mints its own. */
 const SYSTEM_FIELDS = ["_id", "_creationTime"] as const;
 const DEFAULT_BATCH = 100;
@@ -150,7 +155,7 @@ async function eachPage(
 }
 
 /**
- * Scan the TARGET collection and index `_migratedFrom -> _id`, so an interrupted
+ * Scan the TARGET collection and index `migratedFrom -> _id`, so an interrupted
  * run resumes without duplicating. One empty page on a fresh target; on a re-run
  * it pages the whole target collection (cost is O(rows already migrated)).
  */

@@ -44,7 +44,7 @@ async function listAll(backend: MigrateEndpoint, collection: string): Promise<Ro
 }
 
 describe("migrate(): flat copy (P1)", () => {
-  it("copies every row, re-minting ids and stamping _migratedFrom", async () => {
+  it("copies every row, re-minting ids and stamping migratedFrom", async () => {
     const source = fresh();
     const target = fresh();
     const a = await insertRow(source, "todos", { title: "a", done: false });
@@ -61,7 +61,7 @@ describe("migrate(): flat copy (P1)", () => {
     expect(rows.map((r) => r.title).sort()).toEqual(["a", "b", "c"]);
     const sourceIds = new Set<string>([a, b, c]);
     for (const row of rows) {
-      const migratedFrom = row._migratedFrom as string;
+      const migratedFrom = row.migratedFrom as string;
       const id = row._id as string;
       // Lineage is stamped to a real source id, and the row carries the
       // TARGET-minted id that migrate recorded for it (not the source's _id,
@@ -92,16 +92,31 @@ describe("migrate(): flat copy (P1)", () => {
     expect(row).not.toHaveProperty("created_at");
   });
 
-  it("treats _migratedFrom as reserved, replacing any source value with new lineage", async () => {
+  it("treats migratedFrom as reserved, replacing any source value with new lineage", async () => {
     const source = fresh();
     const target = fresh();
-    // A source row that itself carries _migratedFrom (e.g. a chained migration).
-    const id = await insertRow(source, "todos", { title: "a", _migratedFrom: "stale-lineage" });
+    // A source row that itself carries migratedFrom (e.g. a chained migration).
+    const id = await insertRow(source, "todos", { title: "a", migratedFrom: "stale-lineage" });
 
     await migrate(source, target, { collections: ["todos"] });
 
     const [row] = await listAll(target, "todos");
-    expect(row?._migratedFrom).toBe(id); // re-stamped to THIS run's source id, not "stale-lineage"
+    expect(row?.migratedFrom).toBe(id); // re-stamped to THIS run's source id, not "stale-lineage"
+  });
+
+  it("stamps a portable marker with no leading underscore (Convex rejects _-prefixed fields)", async () => {
+    const source = fresh();
+    const target = fresh();
+    await insertRow(source, "todos", { title: "a" });
+
+    await migrate(source, target, { collections: ["todos"] });
+
+    const [row] = await listAll(target, "todos");
+    // The lineage marker must be a plain field; Convex refuses to insert any user
+    // field starting with "_", so an underscore marker would break Convex targets.
+    expect(row).toHaveProperty("migratedFrom");
+    const underscoreFields = Object.keys(row ?? {}).filter((k) => k.startsWith("_") && k !== "_id");
+    expect(underscoreFields).toEqual([]);
   });
 
   it("reports copy progress per row", async () => {
