@@ -16,3 +16,10 @@ adapter's `Capabilities`, so it cannot drift from the code.
 | `efficientFilterRequiresIndex` | ❌ | ❌ | ✅ | Filtering an unindexed field is a full scan, not an efficient lookup. |
 | `managesCredentials` | ✅ | ✅ | ❌ | The auth provider runs sign-in flows, not just JWT verification. |
 | `fileStorage` | ✅ | ✅ | ✅ | A `FileStore` is available. |
+
+## Notes
+
+- The table reflects each backend's **default** capabilities. Supabase
+  `reactiveQueries` is opt-in: declaring a `realtime` watch on a query flips it
+  to `true`, and `subscribe` then delivers live updates by re-running the query
+  on watched-table changes. See the adapter README.
