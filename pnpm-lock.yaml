@@ -160,6 +160,25 @@ importers:
         specifier: ^5.7
         version: 5.9.3
 
+  packages/migrate:
+    dependencies:
+      '@baas/core':
+        specifier: workspace:^
+        version: link:../core
+    devDependencies:
+      '@baas/adapter-memory':
+        specifier: workspace:^
+        version: link:../adapter-memory
+      tsup:
+        specifier: ^8
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7
+        version: 5.9.3
+      vitest:
+        specifier: ^3
+        version: 3.2.6(@edge-runtime/vm@5.0.0)(@types/node@25.9.3)(jiti@2.7.0)(yaml@2.9.0)
+
 packages:
 
   '@andrewbranch/untar.js@1.0.3':
