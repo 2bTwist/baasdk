@@ -29,7 +29,8 @@ if (!report.ok) {
 
 1. **Resume index.** Before copying a collection, the target is scanned and every
    existing row's `_migratedFrom` value is indexed, so an interrupted run resumes
-   without duplicating (cheap, one empty page, on a fresh target).
+   without duplicating. On a fresh target this is one empty page; on a re-run it
+   pages the whole target collection (cost scales with rows already migrated).
 2. **Copy pass.** Each source collection is paged to exhaustion. Every row is
    re-inserted with backend system fields (`_id`, `_creationTime`) and any
    `stripFields` removed, and stamped `_migratedFrom: <oldSourceId>`. The target
@@ -65,6 +66,12 @@ and the copied non-system columns must exist (or the target must be schemaless,
 like the in-memory adapter or a Convex table with `schemaValidation: false`). A
 Supabase target needs a `_migratedFrom` column on each migrated table for resume
 to work.
+
+`_migratedFrom` is **reserved** and managed by migrate: any value a source row
+carries under that name is dropped and replaced with this run's source id (so a
+chained re-migration re-stamps fresh lineage rather than carrying stale ids). A
+source row whose `_id` is missing or non-scalar aborts the run with a `validation`
+error rather than silently corrupting the id map.
 
 ## Tests
 

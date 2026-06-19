@@ -100,7 +100,11 @@ export interface MigrateReport {
   readonly error?: MigrateError;
 }
 
-/** Stamped on every re-minted row so a re-run is idempotent (resume marker). */
+/**
+ * Stamped on every re-minted row so a re-run is idempotent (resume marker).
+ * RESERVED: migrate owns this field. A source value under this name is dropped
+ * before insert and replaced with the current run's source id.
+ */
 const MARKER = "_migratedFrom";
 /** Backend system fields never carried across; the target re-mints its own. */
 const SYSTEM_FIELDS = ["_id", "_creationTime"] as const;
@@ -147,7 +151,8 @@ async function eachPage(
 
 /**
  * Scan the TARGET collection and index `_migratedFrom -> _id`, so an interrupted
- * run resumes without duplicating. Cheap (one empty page) on a fresh target.
+ * run resumes without duplicating. One empty page on a fresh target; on a re-run
+ * it pages the whole target collection (cost is O(rows already migrated)).
  */
 async function buildResumeIndex(
   store: MigrateEndpoint["store"],
@@ -177,7 +182,9 @@ export async function migrate(
   opts: MigrateOptions,
 ): Promise<MigrateReport> {
   const batchSize = opts.batchSize ?? DEFAULT_BATCH;
-  const strip = new Set<string>([...SYSTEM_FIELDS, ...(opts.stripFields ?? [])]);
+  // MARKER is reserved and migrate-owned: drop any value the source carries under
+  // it (e.g. stale lineage from a prior migration) so this run stamps fresh.
+  const strip = new Set<string>([...SYSTEM_FIELDS, MARKER, ...(opts.stripFields ?? [])]);
   const idMap: Record<string, Map<string, string>> = {};
   const collections: Record<string, CollectionReport> = {};
   // Mutable accumulators kept beside the readonly report shape callers see.
@@ -201,7 +208,22 @@ export async function migrate(
         { collection, phase: "copy" },
         async (rows) => {
           for (const row of rows) {
-            const oldId = String(row._id);
+            // Every listed item must carry a portable scalar `_id` (the core
+            // contract). Fail fast on a misbehaving source rather than letting a
+            // missing id collapse to the string "undefined" and silently corrupt
+            // the idMap (every such row would overwrite the same key).
+            const rawId = row._id;
+            if (typeof rawId !== "string" && typeof rawId !== "number") {
+              throw new MigrateAbort({
+                collection,
+                phase: "copy",
+                error: {
+                  code: "validation",
+                  message: `row in "${collection}" has no usable _id; every listed item must carry a portable _id`,
+                },
+              });
+            }
+            const oldId = String(rawId);
             const existing = resume.get(oldId);
             if (existing !== undefined) {
               map.set(oldId, existing);

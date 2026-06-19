@@ -14,6 +14,7 @@ import {
   err,
   type ListOptions,
   type ListPage,
+  ok,
   type Result,
 } from "@baas/core";
 import { type MigrateEndpoint, type MigrateProgress, migrate } from "@baas/migrate";
@@ -91,6 +92,18 @@ describe("migrate(): flat copy (P1)", () => {
     expect(row).not.toHaveProperty("created_at");
   });
 
+  it("treats _migratedFrom as reserved, replacing any source value with new lineage", async () => {
+    const source = fresh();
+    const target = fresh();
+    // A source row that itself carries _migratedFrom (e.g. a chained migration).
+    const id = await insertRow(source, "todos", { title: "a", _migratedFrom: "stale-lineage" });
+
+    await migrate(source, target, { collections: ["todos"] });
+
+    const [row] = await listAll(target, "todos");
+    expect(row?._migratedFrom).toBe(id); // re-stamped to THIS run's source id, not "stale-lineage"
+  });
+
   it("reports copy progress per row", async () => {
     const source = fresh();
     const target = fresh();
@@ -164,6 +177,25 @@ describe("migrate(): relation relink (P2)", () => {
     expect(report.collections.posts?.relinked).toBe(0);
     const [post] = await listAll(target, "posts");
     expect(post?.authorId).toBe("ghost-id"); // left as-is, never silently nulled
+  });
+
+  it("leaves a dangling FK whose target collection WAS migrated but the value has no mapping", async () => {
+    const source = fresh();
+    const target = fresh();
+    const alice = await insertRow(source, "users", { name: "alice" });
+    await insertRow(source, "posts", { title: "p1", authorId: alice });
+    await insertRow(source, "posts", { title: "p2", authorId: "no-such-user" });
+
+    const report = await migrate(source, target, {
+      collections: ["users", "posts"],
+      relations: { posts: { authorId: "users" } },
+    });
+
+    expect(report.ok).toBe(true);
+    expect(report.collections.posts?.relinked).toBe(1); // only p1 had a mappable FK
+    const posts = await listAll(target, "posts");
+    const p2 = posts.find((p) => p.title === "p2");
+    expect(p2?.authorId).toBe("no-such-user"); // unmapped value left, not nulled
   });
 });
 
@@ -242,5 +274,35 @@ describe("migrate(): fail-fast (P4)", () => {
     // The two rows copied before the failure are mapped (resume can continue).
     expect(report.idMap.todos?.size).toBe(2);
     expect(await listAll(real, "todos")).toHaveLength(2);
+  });
+
+  it("aborts fail-fast with a validation error on a source row missing a usable _id", async () => {
+    const target = fresh();
+    // A misbehaving source whose list() yields a row with no _id (contract
+    // violation). migrate must fail loudly, not collapse the idMap to one key.
+    const badSource: MigrateEndpoint = {
+      store: {
+        list<T = unknown>(_collection: string, _opts?: ListOptions): Promise<Result<ListPage<T>>> {
+          return Promise.resolve(ok({ items: [{ title: "a" } as unknown as T], nextCursor: null }));
+        },
+        insert<T = Row>(collection: string, value: T): Promise<Result<DocumentId>> {
+          return target.store.insert<T>(collection, value);
+        },
+        patch<T = Row>(
+          collection: string,
+          id: DocumentId,
+          value: Partial<T>,
+        ): Promise<Result<void>> {
+          return target.store.patch<T>(collection, id, value);
+        },
+      },
+    };
+
+    const report = await migrate(badSource, target, { collections: ["todos"] });
+
+    expect(report.ok).toBe(false);
+    expect(report.error?.phase).toBe("copy");
+    expect(report.error?.error.code).toBe("validation");
+    expect(await listAll(target, "todos")).toHaveLength(0); // nothing landed
   });
 });
