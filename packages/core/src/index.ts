@@ -170,21 +170,37 @@ type QueryName<S extends StoreSchema> = keyof S["queries"] & string;
 type MutationName<S extends StoreSchema> = keyof S["mutations"] & string;
 
 // ---------------------------------------------------------------------------
-// list() is the portable, cursor-paginated, creation-ordered read primitive.
-// Deliberately small: creation-order only (no arbitrary-field sort, which Convex
-// cannot do in a generic helper without an app-declared index), six comparison
-// operators, cursor (never offset) pagination. Richer querying via native().
+// list() is the portable, cursor-paginated read primitive. Deliberately small:
+// creation-order by default (with opt-in field ordering), seven operators, cursor
+// (never offset) pagination. Joins/aggregation/projection via native().
 // ---------------------------------------------------------------------------
 
-export type ListOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
+export type ListOp = "eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "in";
 export type ListScalar = string | number | boolean | null;
-/** A single AND-combined filter condition: [field, operator, value]. */
-export type WhereCondition = readonly [field: string, op: ListOp, value: ListScalar];
+/**
+ * A single AND-combined filter: [field, operator, value]. The `in` operator takes
+ * an array of allowed values; every other operator takes a scalar.
+ */
+export type WhereCondition =
+  | readonly [field: string, op: "eq" | "neq" | "gt" | "gte" | "lt" | "lte", value: ListScalar]
+  | readonly [field: string, op: "in", value: readonly ListScalar[]];
+
+/**
+ * Result ordering. A bare `"asc"`/`"desc"` orders by CREATION order (the portable
+ * default). `{ field }` orders by a document field; on a backend where
+ * `efficientFilterRequiresIndex` is true (Convex) this requires a matching
+ * `by_<field>` index, otherwise `list` returns an `unsupported_capability` error.
+ * Supabase and memory order by any field directly.
+ */
+export type ListOrder =
+  | "asc"
+  | "desc"
+  | { readonly field: string; readonly direction?: "asc" | "desc" };
 
 export interface ListOptions {
   readonly where?: readonly WhereCondition[];
-  /** Creation-order direction. Default "asc". This is a direction, NOT a field. */
-  readonly order?: "asc" | "desc";
+  /** Creation order (`"asc"`/`"desc"`) or a field; default `"asc"`. See `ListOrder`. */
+  readonly order?: ListOrder;
   /** Page size. Default 50, clamped to a maximum of 200. */
   readonly limit?: number;
   /**
@@ -250,9 +266,9 @@ export interface DocumentStore<S extends StoreSchema = AnySchema> {
   get<T = unknown>(collection: string, id: DocumentId): Promise<Result<T | null>>;
 
   /**
-   * List a collection in creation order, filtered and cursor-paginated. Every
-   * returned item carries a portable `_id: DocumentId`, so a listed item can be
-   * passed straight back to `get`/`patch`/`remove`.
+   * List a collection, filtered, ordered (creation order or a field), and
+   * cursor-paginated. Every returned item carries a portable `_id: DocumentId`,
+   * so a listed item can be passed straight back to `get`/`patch`/`remove`.
    *
    * "Creation order" is each backend's insertion order; how TIES are broken is
    * adapter-specific (Supabase breaks equal timestamps by primary key, not

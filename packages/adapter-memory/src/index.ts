@@ -28,6 +28,7 @@ import {
   type FileStore,
   type Identity,
   type ListOptions,
+  type ListOrder,
   type ListPage,
   type ListScalar,
   type OAuthOptions,
@@ -201,6 +202,7 @@ const cmp = (a: unknown, b: ListScalar): number => {
 const matchesWhere = (row: Record<string, unknown>, where: readonly WhereCondition[]): boolean =>
   where.every(([field, op, value]) => {
     const a = row[field];
+    if (op === "in") return value.includes(a as ListScalar);
     switch (op) {
       case "eq":
         return a === value;
@@ -221,6 +223,27 @@ const matchesWhere = (row: Record<string, unknown>, where: readonly WhereConditi
 
 /** The monotonic counter embedded in a memory `_id` (`collection:counter`). */
 const counterOf = (id: string): number => Number(id.slice(id.lastIndexOf(":") + 1));
+
+/** Normalize the order option to a field (null = creation order) + direction. */
+const normalizeOrder = (order: ListOrder | undefined): { field: string | null; desc: boolean } => {
+  if (order === undefined || order === "asc") return { field: null, desc: false };
+  if (order === "desc") return { field: null, desc: true };
+  return { field: order.field, desc: order.direction === "desc" };
+};
+
+const encodeMemCursor = (k: ListScalar, t: number): Cursor =>
+  btoa(JSON.stringify({ k, t })) as Cursor;
+const decodeMemCursor = (c: Cursor): { k: ListScalar; t: number } => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(atob(c));
+  } catch {
+    throw new MemoryError("validation", "invalid cursor");
+  }
+  const t = (parsed as { t?: unknown }).t;
+  if (typeof t !== "number") throw new MemoryError("validation", "invalid cursor");
+  return { k: (parsed as { k: ListScalar }).k, t };
+};
 
 class MemoryDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
   constructor(
@@ -304,27 +327,31 @@ class MemoryDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     try {
       const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
       const where = opts?.where ?? [];
-      const desc = opts?.order === "desc";
-      // db.all yields rows in insertion (creation) order, each as { _id, ...value }.
+      const { field, desc } = normalizeOrder(opts?.order);
+      // Primary sort key: a document field, or the monotonic creation counter.
+      // The counter is always the unique tiebreaker, so pagination is stable.
+      const keyOf = (r: Record_ & { _id: DocumentId }): ListScalar =>
+        field === null ? counterOf(r._id) : (r[field] as ListScalar);
       const rows = this.db
         .all<Record_ & { _id: DocumentId }>(collection)
         .filter((r) => matchesWhere(r, where));
-      if (desc) rows.reverse();
-      // Keyset by the monotonic counter so pagination survives deletions.
-      const after = opts?.cursor ? counterOf(opts.cursor) : null;
-      if (after !== null && Number.isNaN(after)) {
-        return err({ code: "validation", message: "invalid cursor" });
+      rows.sort((a, b) => {
+        const c = cmp(keyOf(a), keyOf(b)) || counterOf(a._id) - counterOf(b._id);
+        return desc ? -c : c;
+      });
+      // Keyset on the composite (sortKey, counter) so pagination survives deletions.
+      let tail = rows;
+      if (opts?.cursor) {
+        const { k, t } = decodeMemCursor(opts.cursor);
+        tail = rows.filter((r) => {
+          const c = cmp(keyOf(r), k) || counterOf(r._id) - t;
+          return desc ? c < 0 : c > 0;
+        });
       }
-      const tail =
-        after === null
-          ? rows
-          : rows.filter((r) => {
-              const rc = counterOf(r._id);
-              return desc ? rc < after : rc > after;
-            });
       const items = tail.slice(0, limit);
       const last = items.at(-1);
-      const nextCursor = tail.length > limit && last ? (last._id as unknown as Cursor) : null;
+      const nextCursor =
+        tail.length > limit && last ? encodeMemCursor(keyOf(last), counterOf(last._id)) : null;
       return ok({ items: items as unknown as T[], nextCursor });
     } catch (e) {
       return toErr(e);

@@ -348,6 +348,57 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         const r = await backend.store.list<ItemRow>("items", { cursor: bad });
         expect(r.ok).toBe(false);
       });
+
+      it("filters with the in operator", async () => {
+        await seed();
+        expect(ns(expectOk(await list({ where: [["tag", "in", ["a", "c"]]] })))).toEqual([1, 3, 4]);
+        expect(ns(expectOk(await list({ where: [["n", "in", [2, 4]]] })))).toEqual([2, 4]);
+      });
+
+      it("orders by a document field", async () => {
+        await seed();
+        // tags by creation order are [a,b,a,c,b]; sorted they are [a,a,b,b,c].
+        // Assert the tag SEQUENCE (not n) so the result is independent of how each
+        // backend breaks same-tag ties (counter vs pk vs index).
+        const tagsOf = (p: ListPage<ItemRow>): string[] => p.items.map((i) => i.tag);
+        expect(tagsOf(expectOk(await list({ order: { field: "tag" } })))).toEqual([
+          "a",
+          "a",
+          "b",
+          "b",
+          "c",
+        ]);
+        expect(
+          tagsOf(expectOk(await list({ order: { field: "tag", direction: "desc" } }))),
+        ).toEqual(["c", "b", "b", "a", "a"]);
+      });
+
+      it("paginates a field-ordered query (stable across ties)", async () => {
+        await seed();
+        const tags: string[] = [];
+        let next: Cursor | null = null;
+        let guard = 0;
+        do {
+          const page: ListPage<ItemRow> = expectOk(
+            await list({ order: { field: "tag" }, limit: 2, cursor: next }),
+          );
+          tags.push(...page.items.map((i) => i.tag));
+          next = page.nextCursor;
+          if (++guard > 10) throw new Error("pagination did not terminate");
+        } while (next !== null);
+        expect(tags).toEqual(["a", "a", "b", "b", "c"]);
+      });
+
+      it("applies the default page size of 50", async () => {
+        for (let i = 0; i < 60; i++) {
+          expectOk(
+            await backend.store.insert("items", { n: i, tag: "x", nilable: null, flag: false }),
+          );
+        }
+        const page = expectOk(await list());
+        expect(page.items).toHaveLength(50);
+        expect(page.nextCursor).not.toBeNull();
+      });
     });
 
     // -- subscribe(): one-shot always, live updates capability-gated -------
