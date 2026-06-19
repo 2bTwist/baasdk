@@ -66,6 +66,13 @@ function render() {
     sep,
     ...rows,
     "",
+    "## Notes",
+    "",
+    "- The table reflects each backend's **default** capabilities. Supabase",
+    "  `reactiveQueries` is opt-in: declaring a `realtime` watch on a query flips it",
+    "  to `true`, and `subscribe` then delivers live updates by re-running the query",
+    "  on watched-table changes. See the adapter README.",
+    "",
   ].join("\n");
 }
 

@@ -95,7 +95,7 @@ per-backend by design.
 | `@baas/core` | the ports (interfaces, types, capability descriptors) | ✅ |
 | `@baas/adapter-memory` | in-memory reference adapter | ✅ |
 | `@baas/conformance` | one suite, parameterized by a constructor | ✅ |
-| `@baas/adapter-supabase` | Supabase (PostgREST / Auth / Storage) | ✅ |
+| `@baas/adapter-supabase` | Supabase (PostgREST / Auth / Storage / opt-in Realtime) | ✅ |
 | `@baas/adapter-convex` | Convex (reactive, JWT-verify auth, storage) | ✅ |
 
 Every divergence between backends is a declared capability flag, asserted in both
