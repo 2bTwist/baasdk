@@ -64,11 +64,31 @@ table the adapter re-runs the query and delivers the full fresh result (the same
 shape Convex delivers), so portable subscribe code runs unchanged on both
 backends. Behavior:
 
-- The whole table is watched, not a filtered slice, so a row leaving the result
-  set is never missed. Bursts of changes are coalesced into a single re-run.
+- A bare table name watches the whole table, so a row leaving the result set is
+  never missed (the safe default). Bursts of changes are coalesced into a single
+  re-run.
 - If the Realtime channel cannot establish (table not enabled, connection or auth
   failure), `onChange` receives an error `Result`, never a silent fall-back to
   one-shot. Subscribing to a query with no declared watch is also a loud error.
+
+**Filtered watches (opt-in, for busy tables).** Replace a bare table name with
+`{ table, filter }` to narrow the subscription to matching rows and cut fan-out
+on high-write tables:
+
+```ts
+realtime: { listRoomMessages: { tables: [{ table: "messages", filter: "room_id=eq.42" }] } }
+```
+
+The `filter` is a Supabase Realtime filter string (`column=op.value`). Two rules:
+
+- **Use a stable identifier column** (a `room_id` / `user_id` / foreign key, text
+  or uuid or int). Filter on columns whose value never changes after insert:
+  Realtime fires on the new row's values, so a row updated *out* of the filtered
+  set produces no event and the query result can keep a stale row.
+- **Avoid boolean filters** (`done=eq.false`). Supabase Realtime is unreliable for
+  boolean equality and may drop or misfire events; verified against a local stack.
+
+When in doubt, watch the whole table (a bare name).
 
 **Requirements.** The watched tables must be in the `supabase_realtime`
 publication (see `supabase/migrations/0002_realtime.sql` for the conformance

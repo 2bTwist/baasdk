@@ -67,6 +67,13 @@ const toBackendError = (e: unknown): BackendError => {
 export type SupabaseQueryFn<Args, Res> = (sb: SupabaseClient, args: Args) => Promise<Res>;
 export type SupabaseMutationFn<Args, Res> = (sb: SupabaseClient, args: Args) => Promise<Res>;
 
+/**
+ * A table to watch for a reactive query: a bare table name (whole table), or a
+ * name plus an optional Supabase Realtime `filter` string (e.g. `"done=eq.false"`)
+ * to narrow the subscription. See the filter caveat on `SupabaseConfig.realtime`.
+ */
+export type WatchedTable = string | { readonly table: string; readonly filter?: string };
+
 export interface SupabaseConfig<S extends StoreSchema = AnySchema> {
   /** Provide a ready client, or `url` + `key` to construct one. */
   readonly client?: SupabaseClient;
@@ -89,13 +96,20 @@ export interface SupabaseConfig<S extends StoreSchema = AnySchema> {
    * Per-query Realtime watch declarations. Presence of ANY entry flips
    * `reactiveQueries` to true (unless overridden via `capabilities`). Each named
    * query lists the table(s) whose changes re-run it and re-deliver the full
-   * fresh result. The WHOLE table is watched (not a filtered slice) for
-   * correctness, since a filter would miss rows leaving the set. Requires Supabase
-   * Realtime enabled for those tables (publication membership); see the adapter
-   * guide. Convex needs no equivalent (it tracks read-sets automatically).
+   * fresh result.
+   *
+   * A bare table name watches the WHOLE table (the safe default). A
+   * `{ table, filter }` entry narrows the subscription to rows matching a Supabase
+   * Realtime filter (e.g. `"room_id=eq.123"`), which cuts fan-out on busy tables
+   * but is UNSAFE for columns whose value changes: a row leaving the filtered set
+   * does not fire an event, so the result can keep a stale row. Use filters only
+   * on append-mostly tables or columns that never change after insert.
+   *
+   * Requires Supabase Realtime enabled for those tables (publication membership);
+   * see the adapter guide. Convex needs no equivalent (it tracks read-sets).
    */
   readonly realtime?: {
-    readonly [K in keyof S["queries"]]?: { readonly tables: readonly string[] };
+    readonly [K in keyof S["queries"]]?: { readonly tables: readonly WatchedTable[] };
   };
   readonly capabilities?: Partial<Capabilities>;
 }
@@ -232,10 +246,16 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     deliver(++gen, true);
 
     const channel = this.sb.channel(`baas:${operation}:${crypto.randomUUID()}`);
-    for (const table of watch.tables) {
-      channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
-        schedule();
-      });
+    for (const entry of watch.tables) {
+      const table = typeof entry === "string" ? entry : entry.table;
+      const filter = typeof entry === "string" ? undefined : entry.filter;
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table, ...(filter ? { filter } : {}) },
+        () => {
+          schedule();
+        },
+      );
     }
     channel.subscribe((status) => {
       if (status === REALTIME_SUBSCRIBE_STATES.SUBSCRIBED) {
