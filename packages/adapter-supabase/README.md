@@ -56,10 +56,10 @@ defaults to `"created_at"`, configure it if your tables use a different column:
 createSupabaseBackend({ url, key, queries: {}, mutations: {}, timestampColumn: "inserted_at" });
 ```
 
-The column must exist on every listed table (it backs both ordering and the
-keyset cursor). The six filter operators map to PostgREST `.eq/.neq/.gt/.gte/.lt/
-.lte`; `eq`/`neq` against `null` use `.is`/`.not.is`. Loop until `nextCursor` is
-`null`.
+When `order` is `{ field }`, the adapter orders and keysets on that column
+instead; `timestampColumn` is the default creation-order column. The filter
+operators map to PostgREST `.eq/.neq/.gt/.gte/.lt/.lte/.in`; `eq`/`neq` against
+`null` use `.is`/`.not.is`. Loop until `nextCursor` is `null`.
 
 ## Live updates (Realtime)
 

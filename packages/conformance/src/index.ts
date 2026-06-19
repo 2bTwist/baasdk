@@ -348,6 +348,83 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         const r = await backend.store.list<ItemRow>("items", { cursor: bad });
         expect(r.ok).toBe(false);
       });
+
+      it("filters with the in operator", async () => {
+        await seed();
+        expect(ns(expectOk(await list({ where: [["tag", "in", ["a", "c"]]] })))).toEqual([1, 3, 4]);
+        expect(ns(expectOk(await list({ where: [["n", "in", [2, 4]]] })))).toEqual([2, 4]);
+        expect(ns(expectOk(await list({ where: [["tag", "in", ["a"]]] })))).toEqual([1, 3]);
+        expect(ns(expectOk(await list({ where: [["tag", "in", ["zzz"]]] })))).toEqual([]);
+        expect(ns(expectOk(await list({ where: [["tag", "in", []]] })))).toEqual([]);
+        // null in the list never matches null rows (use eq null); only n=5 has "x".
+        expect(ns(expectOk(await list({ where: [["nilable", "in", [null, "x"]]] })))).toEqual([5]);
+      });
+
+      it("orders by a numeric field numerically (not lexically) across pages", async () => {
+        // n chosen so lexical != numeric: numeric [2,3,10] but lexical ["10","2","3"].
+        await insertItem(3, "x", null);
+        await insertItem(10, "x", null);
+        await insertItem(2, "x", null);
+        expect(ns(expectOk(await list({ order: { field: "n" } })))).toEqual([2, 3, 10]);
+        // Paginate limit 1 to force the keyset across the 2 -> 10 boundary.
+        const seen: number[] = [];
+        let next: Cursor | null = null;
+        let guard = 0;
+        do {
+          const page: ListPage<ItemRow> = expectOk(
+            await list({ order: { field: "n" }, limit: 1, cursor: next }),
+          );
+          seen.push(...ns(page));
+          next = page.nextCursor;
+          if (++guard > 10) throw new Error("pagination did not terminate");
+        } while (next !== null);
+        expect(seen).toEqual([2, 3, 10]);
+      });
+
+      it("orders by a document field", async () => {
+        await seed();
+        // tags by creation order are [a,b,a,c,b]; sorted they are [a,a,b,b,c].
+        // Assert the tag SEQUENCE (not n) so the result is independent of how each
+        // backend breaks same-tag ties (counter vs pk vs index).
+        const tagsOf = (p: ListPage<ItemRow>): string[] => p.items.map((i) => i.tag);
+        expect(tagsOf(expectOk(await list({ order: { field: "tag" } })))).toEqual([
+          "a",
+          "a",
+          "b",
+          "b",
+          "c",
+        ]);
+        expect(
+          tagsOf(expectOk(await list({ order: { field: "tag", direction: "desc" } }))),
+        ).toEqual(["c", "b", "b", "a", "a"]);
+      });
+
+      it("paginates a field-ordered query (stable across ties)", async () => {
+        await seed();
+        const tags: string[] = [];
+        let next: Cursor | null = null;
+        let guard = 0;
+        do {
+          const page: ListPage<ItemRow> = expectOk(
+            await list({ order: { field: "tag" }, limit: 2, cursor: next }),
+          );
+          tags.push(...page.items.map((i) => i.tag));
+          next = page.nextCursor;
+          if (++guard > 10) throw new Error("pagination did not terminate");
+        } while (next !== null);
+        expect(tags).toEqual(["a", "a", "b", "b", "c"]);
+      });
+
+      it("applies the default page size of 50", async () => {
+        for (let i = 0; i < 60; i++) {
+          expectOk(
+            await backend.store.insert("items", { n: i, tag: "x", nilable: null, flag: false }),
+          );
+        }
+        const page = expectOk(await list());
+        expect(page.items).toHaveLength(50);
+        expect(page.nextCursor).not.toBeNull();
+      });
     });
 
     // -- subscribe(): one-shot always, live updates capability-gated -------

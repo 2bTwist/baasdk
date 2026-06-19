@@ -12,3 +12,6 @@ docs/api/
 # Local planning/research docs (groundwork/plan output). Kept out of the public
 # repo: they reference cross-project and personal working-style notes.
 specs/
+
+# local interactive demo (not part of the SDK)
+playground/

@@ -147,24 +147,39 @@ type MutationName<S extends StoreSchema> = keyof S["mutations"] & string;
 type SbFilter = ReturnType<ReturnType<SupabaseClient["from"]>["select"]>;
 
 /** Apply one portable filter condition. null uses `.is` / `.not.is`, not `.eq`. */
-const applyOp = (q: SbFilter, field: string, op: ListOp, value: ListScalar): SbFilter => {
-  if (value === null) {
+const applyOp = (
+  q: SbFilter,
+  field: string,
+  op: ListOp,
+  value: ListScalar | readonly ListScalar[],
+): SbFilter => {
+  if (op === "in") {
+    // SQL `IN (NULL, ...)` never matches null, and matching it would diverge from
+    // memory/Convex. Drop null so `in` matches concrete values only (`eq null` for
+    // null). Consistent across all three adapters.
+    return q.in(
+      field,
+      (value as readonly ListScalar[]).filter((x) => x !== null),
+    );
+  }
+  const v = value as ListScalar;
+  if (v === null) {
     if (op === "eq") return q.is(field, null);
     if (op === "neq") return q.not(field, "is", null);
   }
   switch (op) {
     case "eq":
-      return q.eq(field, value);
+      return q.eq(field, v);
     case "neq":
-      return q.neq(field, value);
+      return q.neq(field, v);
     case "gt":
-      return q.gt(field, value);
+      return q.gt(field, v);
     case "gte":
-      return q.gte(field, value);
+      return q.gte(field, v);
     case "lt":
-      return q.lt(field, value);
+      return q.lt(field, v);
     case "lte":
-      return q.lte(field, value);
+      return q.lte(field, v);
     default:
       return q;
   }
@@ -390,18 +405,23 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
   async list<T = unknown>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>> {
     try {
       const limit = Math.min(Math.max(opts?.limit ?? 50, 1), 200);
-      const asc = (opts?.order ?? "asc") === "asc";
+      // Order by a chosen field, or creation order (the timestampColumn) by
+      // default. Either way keyset on (orderCol, pk) for a stable total order.
+      const order = opts?.order;
+      const byField = typeof order === "object" && order !== null;
+      const orderCol = byField ? order.field : this.tc;
+      const asc = byField ? order.direction !== "desc" : order !== "desc";
       let q: SbFilter = this.sb.from(collection).select("*");
       for (const [field, op, value] of opts?.where ?? []) q = applyOp(q, field, op, value);
       if (opts?.cursor) {
         // decodeCursor throws on a malformed/tampered cursor; the catch turns
         // that into an err Result rather than letting list() reject.
         const { ts, id } = decodeCursor(opts.cursor);
-        q = applyKeyset(q, asc, this.tc, this.pk, ts, id);
+        q = applyKeyset(q, asc, orderCol, this.pk, ts, id);
       }
       // Stable total order, then fetch one extra row to detect a next page.
       const { data, error } = await q
-        .order(this.tc, { ascending: asc })
+        .order(orderCol, { ascending: asc })
         .order(this.pk, { ascending: asc })
         .limit(limit + 1);
       if (error) return err(toBackendError(error));
@@ -410,7 +430,7 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
       const pageRows = hasMore ? rows.slice(0, limit) : rows;
       const items = pageRows.map((r) => ({ _id: String(r[this.pk]) as DocumentId, ...r }));
       const last = pageRows.at(-1);
-      const nextCursor = hasMore && last ? encodeCursor(last[this.tc], last[this.pk]) : null;
+      const nextCursor = hasMore && last ? encodeCursor(last[orderCol], last[this.pk]) : null;
       return ok({ items: items as unknown as T[], nextCursor });
     } catch (e) {
       return err(toBackendError(e));
