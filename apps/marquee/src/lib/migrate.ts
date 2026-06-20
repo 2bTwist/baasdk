@@ -27,20 +27,14 @@ import type { BackendKind } from "./backend";
  */
 /** Catalog collections have NO row-level security: the portable CRUD writes them
  *  on any backend with the public/anon client. */
-export const CATALOG_COLLECTIONS = [
-  "genres",
-  "people",
-  "movies",
-  "movieGenres",
-  "credits",
-] as const;
+const CATALOG_COLLECTIONS = ["genres", "people", "movies", "movieGenres", "credits"] as const;
 
 /** User-owned collections are RLS-protected on Supabase (insert_own requires
  *  `auth.uid() = userId`), so the browser's anon client CANNOT write them. They
  *  migrate freely INTO Convex (ungated CRUD); writing them INTO Supabase needs
  *  service credentials, so a `->supabase` cutover from the browser is
  *  catalog-only (see `collectionsFor`). */
-export const USER_COLLECTIONS = ["reviews", "profiles"] as const;
+const USER_COLLECTIONS = ["reviews", "profiles"] as const;
 
 export const MIGRATE_COLLECTIONS = [...CATALOG_COLLECTIONS, ...USER_COLLECTIONS] as const;
 
@@ -58,7 +52,7 @@ export function collectionsFor(targetKind: BackendKind): readonly string[] {
 }
 
 /** FK remap: `relations[collection][field] = targetCollection`. */
-export const MIGRATE_RELATIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+const MIGRATE_RELATIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   movieGenres: { movieId: "movies", genreId: "genres" },
   credits: { movieId: "movies", personId: "people" },
   reviews: { movieId: "movies" },
