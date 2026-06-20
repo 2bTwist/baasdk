@@ -1,5 +1,6 @@
 packages:
   - "packages/*"
+  - "apps/*"
 
 # Build-script decisions. Global ignore-scripts=true is on for supply-chain
 # hardening; these are the explicit per-dependency decisions pnpm requires.
