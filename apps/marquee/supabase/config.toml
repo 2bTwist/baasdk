@@ -1,0 +1,42 @@
+# Marquee's OWN local Supabase project, separate from the adapter's conformance
+# DB so the app stays self-contained. Ports are offset +1000 from the adapter's
+# (54321 -> 55321, ...) so both instances can run side by side.
+project_id = "marquee"
+
+[api]
+enabled = true
+port = 55321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+# Marquee seeds through the app's TypeScript seed (portable store), not SQL.
+enabled = false
+
+[realtime]
+# Off for Phase 1 (one-shot CRUD). Phase 4 turns this on for live review counts.
+enabled = false
+
+[studio]
+enabled = false
+
+[auth]
+# Auth lands in Phase 3 (RLS + sign-in). Left enabled but unused in Phase 1.
+enabled = true
+site_url = "http://127.0.0.1:5174"
+
+[storage]
+# Poster uploads arrive in Phase 4.
+enabled = false
+
+[analytics]
+enabled = false

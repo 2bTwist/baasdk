@@ -74,12 +74,24 @@ importers:
 
   apps/marquee:
     dependencies:
+      '@baas/adapter-convex':
+        specifier: workspace:^
+        version: link:../../packages/adapter-convex
       '@baas/adapter-memory':
         specifier: workspace:^
         version: link:../../packages/adapter-memory
+      '@baas/adapter-supabase':
+        specifier: workspace:^
+        version: link:../../packages/adapter-supabase
       '@baas/core':
         specifier: workspace:^
         version: link:../../packages/core
+      '@supabase/supabase-js':
+        specifier: ^2
+        version: 2.108.2
+      convex:
+        specifier: ^1
+        version: 1.41.0(react@19.2.7)
       react:
         specifier: ^19.1.0
         version: 19.2.7
@@ -102,6 +114,9 @@ importers:
       vite:
         specifier: ^7
         version: 7.3.5(@types/node@25.9.3)(jiti@2.7.0)(yaml@2.9.0)
+      vitest:
+        specifier: ^3
+        version: 3.2.6(@edge-runtime/vm@5.0.0)(@types/node@25.9.3)(jiti@2.7.0)(yaml@2.9.0)
 
   packages/adapter-convex:
     dependencies:

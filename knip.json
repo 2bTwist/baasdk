@@ -1,4 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["**/_generated/**", "**/test/convex/**", "demo/**", "scripts/demo.mjs"]
+  "ignore": ["**/_generated/**", "**/test/convex/**", "demo/**", "scripts/demo.mjs"],
+  "workspaces": {
+    "apps/marquee": {
+      "entry": ["convex/{schema,baas,testing}.ts", "scripts/seed.mts", "test/**/*.test.ts"]
+    }
+  }
 }

@@ -263,9 +263,311 @@ main {
   margin: 0 0 6px;
 }
 
+/* ---- brand button (header home link) ----------------------------------- */
+.brand-btn {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+/* ---- shared helpers ---------------------------------------------------- */
+.muted-note {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 8px 0;
+}
+
+.link-btn {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 14px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.link-btn:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--faint);
+}
+
+.link-btn:disabled {
+  cursor: not-allowed;
+  color: var(--faint);
+}
+
+.text-input {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.text-input:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 1px;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 88px;
+}
+
+/* ---- filter bar -------------------------------------------------------- */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-label,
+.field-label {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.filter .text-input {
+  min-width: 150px;
+}
+
+.filter input.text-input {
+  width: 110px;
+}
+
+/* ---- catalog cards as buttons ------------------------------------------ */
+.card-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  transition:
+    transform 0.08s,
+    box-shadow 0.15s;
+}
+
+.card-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 26px 54px -40px var(--shadow);
+}
+
+.card-genre {
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.poster-thumb,
+.detail-poster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, var(--ink), var(--line-soft));
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--faint);
+}
+
+.poster-thumb {
+  aspect-ratio: 3 / 2;
+  margin-bottom: 14px;
+}
+
+.poster-initial {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: 38px;
+  color: var(--faint);
+}
+
+.load-more-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+.load-more {
+  padding: 12px 28px;
+}
+
+/* ---- movie detail ------------------------------------------------------ */
+.detail-view,
+.form-view {
+  padding-top: 24px;
+}
+
+.detail {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 32px;
+  margin-top: 22px;
+}
+
+.detail-poster {
+  aspect-ratio: 2 / 3;
+}
+
+.detail-poster .poster-initial {
+  font-size: 64px;
+}
+
+.detail-meta {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.detail-title {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 8px 0 4px;
+}
+
+.detail-director {
+  color: var(--muted);
+  margin: 0 0 16px;
+}
+
+.detail-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.genre-tag {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--text);
+  background: var(--ink-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 11px;
+}
+
+.detail-synopsis {
+  max-width: 62ch;
+  line-height: 1.6;
+  margin: 0 0 24px;
+}
+
+/* ---- movie form -------------------------------------------------------- */
+.form-title {
+  font-family: var(--disp);
+  font-weight: 700;
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.02em;
+  margin: 18px 0 22px;
+}
+
+.movie-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 560px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.field-row .field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.genre-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--ink-3);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.chip:hover {
+  color: var(--text);
+  border-color: var(--faint);
+}
+
+.chip.on {
+  color: var(--ink-3);
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .detail {
+    grid-template-columns: 1fr;
+  }
+  .detail-poster {
+    max-width: 200px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .add-btn,
-  .switcher button {
+  .switcher button,
+  .card-btn,
+  .chip,
+  .link-btn {
     transition: none;
   }
 }
