@@ -30,6 +30,10 @@
  * migrate guards this portably with a read-after-write check on the first row it
  * copies into each collection: if the row cannot be read back, it aborts with a
  * `validation` error rather than risking duplicates on a later re-run.
+ *
+ * `dryRunMigrate()` projects a cutover WITHOUT writing: it reports per-collection
+ * how many rows would be copied vs skipped and the first validation/size issue a
+ * real run would abort on, so a caller can sanity-check before committing.
  */
 
 import type { BackendError, Cursor, DocumentId, DocumentStore, ListPage, Result } from "@baas/core";
@@ -177,6 +181,69 @@ function unwrap<T>(result: Result<T>, ctx: Omit<MigrateError, "error">): T {
 }
 
 /**
+ * The portable scalar `_id` every listed row must carry (the core contract), as a
+ * string, or a fail-fast `validation` abort. Shared by the real copy and the dry
+ * run so the projected outcome can never drift from what the real run validates.
+ */
+function requireOldId(row: Row, collection: string): string {
+  const rawId = row._id;
+  if (typeof rawId !== "string" && typeof rawId !== "number") {
+    throw new MigrateAbort({
+      collection,
+      phase: "copy",
+      error: {
+        code: "validation",
+        message: `row in "${collection}" has no usable _id; every listed item must carry a portable _id`,
+      },
+    });
+  }
+  return String(rawId);
+}
+
+/**
+ * Build the target payload for a row: strip system/reserved/opted-out fields,
+ * stamp the lineage marker, and (if `maxValueBytes` is set) fail-fast on an
+ * oversized payload. Shared by the real copy and the dry run, so a plan's
+ * size/shape validation is exactly what the real insert would face.
+ */
+function buildCheckedPayload(
+  row: Row,
+  oldId: string,
+  collection: string,
+  strip: ReadonlySet<string>,
+  maxValueBytes: number | undefined,
+): Row {
+  const payload: Row = {};
+  for (const [key, value] of Object.entries(row)) {
+    if (!strip.has(key)) payload[key] = value;
+  }
+  payload[MARKER] = oldId;
+  // Byte-bound guard (opt-in): reject an oversized payload up front with an
+  // actionable error, rather than letting a size-capped target (Convex: ~1
+  // MiB/value, 16 MiB/mutation) reject it mid-insert with a provider-specific
+  // message. Portable: the size is the UTF-8 length of the JSON encoding.
+  if (maxValueBytes !== undefined) {
+    const bytes = byteLength(payload);
+    if (bytes !== null && bytes > maxValueBytes) {
+      throw new MigrateAbort({
+        collection,
+        phase: "copy",
+        oldId,
+        error: {
+          code: "validation",
+          message: `row "${oldId}" in "${collection}" serializes to ${bytes} bytes, over the configured maxValueBytes (${maxValueBytes}); shrink or split the value before migrating (a Convex target caps a single value at ~1 MiB and a mutation at 16 MiB)`,
+        },
+      });
+    }
+  }
+  return payload;
+}
+
+/** The fields stripped from every row, given the caller's `stripFields`. */
+const stripSet = (stripFields: readonly string[] | undefined): ReadonlySet<string> =>
+  new Set<string>([...SYSTEM_FIELDS, MARKER, ...(stripFields ?? [])]);
+
+/**
  * Page a collection to exhaustion, invoking `onPage` with each page's rows.
  * Loops until `nextCursor` is null, and never treats a full page as the last, since
  * a scanning backend can report "more to scan" after the final match.
@@ -235,7 +302,7 @@ export async function migrate(
   const maxValueBytes = opts.maxValueBytes;
   // MARKER is reserved and migrate-owned: drop any value the source carries under
   // it (e.g. stale lineage from a prior migration) so this run stamps fresh.
-  const strip = new Set<string>([...SYSTEM_FIELDS, MARKER, ...(opts.stripFields ?? [])]);
+  const strip = stripSet(opts.stripFields);
   const idMap: Record<string, Map<string, string>> = {};
   const collections: Record<string, CollectionReport> = {};
   // Mutable accumulators kept beside the readonly report shape callers see.
@@ -271,51 +338,13 @@ export async function migrate(
         { collection, phase: "copy" },
         async (rows) => {
           for (const row of rows) {
-            // Every listed item must carry a portable scalar `_id` (the core
-            // contract). Fail fast on a misbehaving source rather than letting a
-            // missing id collapse to the string "undefined" and silently corrupt
-            // the idMap (every such row would overwrite the same key).
-            const rawId = row._id;
-            if (typeof rawId !== "string" && typeof rawId !== "number") {
-              throw new MigrateAbort({
-                collection,
-                phase: "copy",
-                error: {
-                  code: "validation",
-                  message: `row in "${collection}" has no usable _id; every listed item must carry a portable _id`,
-                },
-              });
-            }
-            const oldId = String(rawId);
+            const oldId = requireOldId(row, collection);
             const existing = resume.get(oldId);
             if (existing !== undefined) {
               map.set(oldId, existing);
               count.skipped++;
             } else {
-              const payload: Row = {};
-              for (const [key, value] of Object.entries(row)) {
-                if (!strip.has(key)) payload[key] = value;
-              }
-              payload[MARKER] = oldId;
-              // Byte-bound guard (opt-in): reject an oversized payload up front
-              // with an actionable error, rather than letting a size-capped target
-              // (Convex: ~1 MiB/value, 16 MiB/mutation) reject it with a
-              // provider-specific message mid-insert. Portable: the size is the
-              // UTF-8 length of the JSON encoding, a conservative proxy.
-              if (maxValueBytes !== undefined) {
-                const bytes = byteLength(payload);
-                if (bytes !== null && bytes > maxValueBytes) {
-                  throw new MigrateAbort({
-                    collection,
-                    phase: "copy",
-                    oldId,
-                    error: {
-                      code: "validation",
-                      message: `row "${oldId}" in "${collection}" serializes to ${bytes} bytes, over the configured maxValueBytes (${maxValueBytes}); shrink or split the value before migrating (a Convex target caps a single value at ~1 MiB and a mutation at 16 MiB)`,
-                    },
-                  });
-                }
-              }
+              const payload = buildCheckedPayload(row, oldId, collection, strip, maxValueBytes);
               const newId = unwrap(await target.store.insert(collection, payload), {
                 collection,
                 phase: "copy",
@@ -395,6 +424,83 @@ export async function migrate(
     return { ok: true, collections, idMap };
   } catch (e) {
     if (e instanceof MigrateAbort) return { ok: false, error: e.info, collections, idMap };
+    throw e;
+  }
+}
+
+export interface MigratePlanCollection {
+  /** Source rows scanned in this collection. */
+  readonly total: number;
+  /** Rows that would be inserted (not already on the target). */
+  readonly toCopy: number;
+  /** Rows already on the target (matched by `migratedFrom`) that would be skipped. */
+  readonly toSkip: number;
+}
+
+export interface MigratePlan {
+  /** False iff the run WOULD abort: `error` is the first issue it would hit. */
+  readonly ok: boolean;
+  readonly collections: Readonly<Record<string, MigratePlanCollection>>;
+  /**
+   * Set iff `ok` is false: the first `validation` issue (a row with no usable
+   * `_id`, or a payload over `maxValueBytes`) that would fail-fast the real run,
+   * using the SAME checks the real copy runs.
+   */
+  readonly error?: MigrateError;
+}
+
+/**
+ * Project a migration WITHOUT writing anything: read the source and the target's
+ * resume index and report, per collection, how many rows would be copied vs
+ * skipped, plus the first validation/size issue a real run would abort on. Use it
+ * to sanity-check a cutover before committing (counts look right? any oversized or
+ * malformed row?). Reads only — the target is never mutated.
+ *
+ * Limits, stated honestly: a dry run CANNOT project the relink pass (it depends on
+ * ids the target mints during the real copy) and CANNOT exercise the
+ * read-after-write precondition (nothing is inserted, so a read-filtered target is
+ * only caught by the real run's first insert). It validates `_id`s, size bounds,
+ * and that both source and target are listable.
+ */
+export async function dryRunMigrate(
+  source: MigrateEndpoint,
+  target: MigrateEndpoint,
+  opts: MigrateOptions,
+): Promise<MigratePlan> {
+  const batchSize = opts.batchSize ?? DEFAULT_BATCH;
+  const maxValueBytes = opts.maxValueBytes;
+  const strip = stripSet(opts.stripFields);
+  const collections: Record<string, { total: number; toCopy: number; toSkip: number }> = {};
+
+  try {
+    for (const collection of opts.collections) {
+      const counts = { total: 0, toCopy: 0, toSkip: 0 };
+      collections[collection] = counts;
+      const resume = await buildResumeIndex(target.store, collection, batchSize);
+      await eachPage(
+        source.store,
+        collection,
+        batchSize,
+        { collection, phase: "copy" },
+        async (rows) => {
+          for (const row of rows) {
+            counts.total++;
+            const oldId = requireOldId(row, collection);
+            if (resume.get(oldId) !== undefined) {
+              counts.toSkip++;
+            } else {
+              // Run the same shape/size validation the real copy would, then
+              // discard the payload — nothing is written in a dry run.
+              buildCheckedPayload(row, oldId, collection, strip, maxValueBytes);
+              counts.toCopy++;
+            }
+          }
+        },
+      );
+    }
+    return { ok: true, collections };
+  } catch (e) {
+    if (e instanceof MigrateAbort) return { ok: false, collections, error: e.info };
     throw e;
   }
 }

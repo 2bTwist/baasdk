@@ -75,6 +75,28 @@ starting with `_`, so an underscore marker would make Convex unusable as a targe
 A source row whose `_id` is missing or non-scalar aborts the run with a
 `validation` error rather than silently corrupting the id map.
 
+## Dry run
+
+`dryRunMigrate(source, target, opts)` projects a cutover **without writing
+anything**. It reads the source and the target's resume index and returns a
+`MigratePlan`: per collection, how many rows would be copied vs skipped, plus the
+first `validation` issue (a row with no usable `_id`, or one over `maxValueBytes`)
+that the real run would fail-fast on — using the **same** checks `migrate()` runs.
+
+```ts
+import { dryRunMigrate, migrate } from "@baas/migrate";
+
+const plan = await dryRunMigrate(source, target, opts);
+if (!plan.ok) throw new Error(`migration would abort: ${plan.error?.error.message}`);
+console.log(plan.collections); // { users: { total, toCopy, toSkip }, ... }
+await migrate(source, target, opts); // commit for real
+```
+
+It is reads-only, so honest about what it can and cannot tell you: a dry run does
+**not** project the relink pass (relinking needs ids the target mints during the
+real copy) and does **not** exercise the read-after-write precondition (nothing is
+inserted, so a read-filtered target only surfaces on the real run's first insert).
+
 ## Size and scan bounds (Convex limits)
 
 Convex caps a single mutation at **16 MiB written / 32,000 documents scanned /
