@@ -4,8 +4,16 @@ import type {
   DocumentId,
   ListOptions,
   ListOrder,
+  StoreSchema,
   WhereCondition,
 } from "@baas/core";
+
+/**
+ * The catalog functions are generic over the backend's named-operation schema
+ * `S`: they touch only the portable `store` CRUD (`list`/`get`/`insert`/`patch`),
+ * which is schema-independent, so they accept any backend (the app's typed
+ * `Backend<MarqueeSchema>` and the tests' bare backends alike).
+ */
 
 /**
  * Marquee's portable data-access layer. Every function here drives
@@ -129,8 +137,8 @@ function buildWhere(filters: MovieFilters): WhereCondition[] {
  * valid for an identical query shape, so the caller must reset it to null
  * whenever a filter or the sort changes (the catalog does exactly that).
  */
-export async function listMovies(
-  backend: Backend,
+export async function listMovies<S extends StoreSchema>(
+  backend: Backend<S>,
   args: ListMoviesArgs,
 ): Promise<Outcome<MoviePage>> {
   const where = buildWhere(args);
@@ -146,8 +154,8 @@ export async function listMovies(
 }
 
 /** Fetch a single movie by id. Resolves to `null` when it does not exist. */
-export async function getMovie(
-  backend: Backend,
+export async function getMovie<S extends StoreSchema>(
+  backend: Backend<S>,
   id: DocumentId,
 ): Promise<Outcome<WithId<Movie> | null>> {
   const result = await backend.store.get<WithId<Movie>>("movies", id);
@@ -156,15 +164,18 @@ export async function getMovie(
 }
 
 /** Create a movie. Resolves to the new document's id. */
-export async function createMovie(backend: Backend, input: Movie): Promise<Outcome<DocumentId>> {
+export async function createMovie<S extends StoreSchema>(
+  backend: Backend<S>,
+  input: Movie,
+): Promise<Outcome<DocumentId>> {
   const result = await backend.store.insert<Movie>("movies", input);
   if (!result.ok) return fail(result.error.message);
   return ok(result.data);
 }
 
 /** Patch an existing movie. */
-export async function updateMovie(
-  backend: Backend,
+export async function updateMovie<S extends StoreSchema>(
+  backend: Backend<S>,
   id: DocumentId,
   patch: Partial<Movie>,
 ): Promise<Outcome<void>> {
@@ -179,7 +190,9 @@ export async function updateMovie(
  * order (no field index needed; only `movies.year`/`movies.title` are indexed),
  * then sorts by name client-side for a stable, readable dropdown.
  */
-export async function listGenres(backend: Backend): Promise<Outcome<ReadonlyArray<WithId<Genre>>>> {
+export async function listGenres<S extends StoreSchema>(
+  backend: Backend<S>,
+): Promise<Outcome<ReadonlyArray<WithId<Genre>>>> {
   const all: WithId<Genre>[] = [];
   let cursor: Cursor | null = null;
   // Loop until nextCursor is null; a non-null cursor can still return a full

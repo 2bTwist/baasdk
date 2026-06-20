@@ -9,9 +9,10 @@ import {
   updateMovie,
   type WithId,
 } from "../lib/movies";
+import type { MarqueeSchema } from "../lib/schema";
 
 interface MovieFormProps {
-  readonly backend: Backend;
+  readonly backend: Backend<MarqueeSchema>;
   /** Editing an existing movie when set; otherwise a create form. */
   readonly movieId?: DocumentId;
   /** Called with the saved movie's id so the caller can navigate to its detail. */

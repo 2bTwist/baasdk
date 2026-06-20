@@ -5,6 +5,7 @@ import { BackendSwitcher } from "./components/BackendSwitcher";
 import { MovieDetail } from "./components/MovieDetail";
 import { MovieForm } from "./components/MovieForm";
 import { BACKENDS, type BackendKind, initialBackendKind, makeBackend } from "./lib/backend";
+import type { MarqueeSchema } from "./lib/schema";
 import { Catalog } from "./routes/Catalog";
 
 /**
@@ -22,7 +23,7 @@ export function App(): React.JSX.Element {
 
   // Re-create the active backend whenever the kind changes. A fresh instance
   // means a fresh store; reset to the catalog so we never view a stale id.
-  const backend: Backend = useMemo(() => makeBackend(kind), [kind]);
+  const backend: Backend<MarqueeSchema> = useMemo(() => makeBackend(kind), [kind]);
 
   const onSelectBackend = useCallback((next: BackendKind): void => {
     setKind(next);

@@ -39,6 +39,20 @@ export default defineSchema(
     })
       .index("by_movieId", ["movieId"])
       .index("by_genreId", ["genreId"]),
+
+    // Phase 2: the cast/director relation the rich detail page joins over.
+    people: defineTable({
+      name: v.string(),
+      bio: v.string(),
+    }),
+
+    credits: defineTable({
+      movieId: v.string(),
+      personId: v.string(),
+      role: v.string(), // "director" | "actor"
+      character: v.string(),
+      billing: v.number(),
+    }).index("by_movieId", ["movieId"]),
   },
   { schemaValidation: false },
 );

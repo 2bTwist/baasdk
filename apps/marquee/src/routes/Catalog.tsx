@@ -1,5 +1,6 @@
 import type { Backend, Cursor, DocumentId } from "@baas/core";
 import { useCallback, useEffect, useState } from "react";
+import { aggregatesServerSide, getGenreCounts } from "../lib/enrich";
 import {
   type Genre,
   type ListMoviesArgs,
@@ -10,9 +11,10 @@ import {
   SORT_LABELS,
   type WithId,
 } from "../lib/movies";
+import type { GenreCount, MarqueeSchema } from "../lib/schema";
 
 interface CatalogProps {
-  readonly backend: Backend;
+  readonly backend: Backend<MarqueeSchema>;
   readonly onOpen: (id: DocumentId) => void;
   readonly onCreate: () => void;
 }
@@ -70,6 +72,7 @@ export function Catalog({ backend, onOpen, onCreate }: CatalogProps): React.JSX.
   const [movies, setMovies] = useState<ReadonlyArray<WithId<Movie>>>([]);
   const [cursor, setCursor] = useState<Cursor | null>(null);
   const [genres, setGenres] = useState<ReadonlyArray<WithId<Genre>>>([]);
+  const [genreCounts, setGenreCounts] = useState<ReadonlyArray<GenreCount>>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +85,21 @@ export function Catalog({ backend, onOpen, onCreate }: CatalogProps): React.JSX.
       if (!active) return;
       if (result.ok) setGenres(result.data);
       // A genre-load failure is non-fatal; the dropdown just stays empty.
+    })();
+    return () => {
+      active = false;
+    };
+  }, [backend]);
+
+  // Load the per-genre movie counts once per backend instance (the Phase 2
+  // aggregation). A failure is non-fatal; the strip simply stays hidden.
+  useEffect(() => {
+    let active = true;
+    setGenreCounts([]);
+    void (async () => {
+      const result = await getGenreCounts(backend);
+      if (!active) return;
+      if (result.ok) setGenreCounts(result.data);
     })();
     return () => {
       active = false;
@@ -132,6 +150,14 @@ export function Catalog({ backend, onOpen, onCreate }: CatalogProps): React.JSX.
     [genres],
   );
 
+  // Top primary-genre counts, most populous first, for the stats strip.
+  const topCounts = [...genreCounts].sort((a, b) => b.count - a.count).slice(0, 8);
+
+  // How the counts were computed on the active backend (the Phase 2 thesis).
+  const countMechanism = aggregatesServerSide(backend)
+    ? "Counted with a SQL view."
+    : "Counted by scanning.";
+
   return (
     <main>
       <div className="catalog-head">
@@ -146,6 +172,20 @@ export function Catalog({ backend, onOpen, onCreate }: CatalogProps): React.JSX.
           + Add movie
         </button>
       </div>
+
+      {topCounts.length > 0 ? (
+        <section className="genre-stats" aria-label="Movies per genre">
+          <div className="genre-stats-row">
+            {topCounts.map((gc) => (
+              <span key={gc.slug} className="stat-chip">
+                <span className="stat-label">{genreName(gc.slug)}</span>
+                <span className="stat-count">{gc.count}</span>
+              </span>
+            ))}
+          </div>
+          <p className="divergence-note">{countMechanism}</p>
+        </section>
+      ) : null}
 
       <div className="filter-bar">
         <label className="filter">

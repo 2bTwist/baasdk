@@ -2,6 +2,8 @@ import { createConvexBackend } from "@baas/adapter-convex";
 import { createMemoryBackend } from "@baas/adapter-memory";
 import { createSupabaseBackend } from "@baas/adapter-supabase";
 import type { Backend } from "@baas/core";
+import { convexQueries, memoryQueries, supabaseQueries } from "./enrich";
+import type { MarqueeSchema } from "./schema";
 
 /**
  * The backends Marquee can run on. `memory` is always available; `supabase` and
@@ -35,16 +37,14 @@ export const BACKENDS: readonly BackendChoice[] = [
 ];
 
 /**
- * Build a fresh `Backend` for the given kind.
- *
- * Marquee drives the portable `store` directly (insert/list/get/patch/remove),
- * so every backend is configured with no named queries or mutations. The same
- * movie/genre objects round-trip through the identical port on all three.
+ * Build a fresh `Backend` for the given kind. The catalog CRUD uses the portable
+ * `store` directly; the named queries (movieCredits/genreCounts) are wired per
+ * backend here so `store.run(...)` is portable across all three.
  */
-export function makeBackend(kind: BackendKind): Backend {
+export function makeBackend(kind: BackendKind): Backend<MarqueeSchema> {
   switch (kind) {
     case "memory":
-      return createMemoryBackend({ queries: {}, mutations: {} });
+      return createMemoryBackend<MarqueeSchema>({ queries: memoryQueries, mutations: {} });
 
     case "supabase": {
       const url = env.VITE_SUPABASE_URL;
@@ -52,13 +52,18 @@ export function makeBackend(kind: BackendKind): Backend {
       if (!url || !key) {
         throw new Error("Supabase backend needs VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
       }
-      return createSupabaseBackend({ url, key, queries: {}, mutations: {} });
+      return createSupabaseBackend<MarqueeSchema>({
+        url,
+        key,
+        queries: supabaseQueries,
+        mutations: {},
+      });
     }
 
     case "convex": {
       const url = env.VITE_CONVEX_URL;
       if (!url) throw new Error("Convex backend needs VITE_CONVEX_URL.");
-      return createConvexBackend({ url, queries: {}, mutations: {} });
+      return createConvexBackend<MarqueeSchema>({ url, queries: convexQueries, mutations: {} });
     }
 
     default: {
