@@ -110,11 +110,27 @@ saved). To point it at your own local Supabase + Convex instead, see
 [`demo/README.md`](demo/README.md). The in-memory build is also what gets published
 to GitHub Pages, so a public demo can never touch a real database.
 
-**Setting it up with a coding agent?** Paste this:
+**Setting it up with a coding agent?** Paste one of these.
+
+In-memory (no setup):
 
 > Clone https://github.com/2bTwist/baasdk, run `pnpm install` then `pnpm demo`, and
 > open http://localhost:8788. It runs in-memory, no database needed. Confirm you can
 > add todos, check them off, and switch providers to migrate the data across.
+
+Real local Supabase + Convex:
+
+> Clone https://github.com/2bTwist/baasdk and run `pnpm install`. Start a local
+> Supabase from `packages/adapter-supabase` with `supabase start` (needs Docker) and
+> a local Convex from `packages/adapter-convex` with `npx convex dev`. Add a
+> `migratedFrom` column to the Supabase `todos` table:
+> `alter table todos add column "migratedFrom" text;`. Copy `demo/config.example.js`
+> to `demo/config.js` and set `mode: "real"`, `supabaseUrl: "http://127.0.0.1:54321"`,
+> `supabaseKey` to the local anon key from `supabase status`, and
+> `convexUrl: "http://127.0.0.1:3210"`. Run `pnpm demo` and open
+> http://localhost:8788. Add and check off todos, then switch providers to migrate
+> between the real backends; the "open table" links open the rows in Supabase Studio
+> and the Convex dashboard. `demo/config.js` is gitignored, so your keys stay local.
 
 ## Status
 
