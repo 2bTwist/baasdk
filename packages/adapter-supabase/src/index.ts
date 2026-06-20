@@ -21,7 +21,6 @@ import {
   type AnySchema,
   type AuthProvider,
   type Backend,
-  type BackendError,
   type Capabilities,
   type CredentialAuth,
   type Cursor,
@@ -48,22 +47,9 @@ import {
 } from "@baas/core";
 import type { Provider, SupabaseClient, Session as SupabaseSession } from "@supabase/supabase-js";
 import { createClient, REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
-
-// ---------------------------------------------------------------------------
-// Error normalization — PostgREST / Auth / Storage errors into BackendError.
-// ---------------------------------------------------------------------------
-
-const toBackendError = (e: unknown): BackendError => {
-  const x = e as { message?: string; code?: string; status?: number } | null;
-  let code: ErrorCode = "unknown";
-  if (x?.code === "PGRST116")
-    code = "not_found"; // no rows where one expected
-  else if (x?.code === "23505")
-    code = "conflict"; // unique violation
-  else if (x?.status === 401 || x?.status === 403) code = "unauthorized";
-  else if (x?.status === 404) code = "not_found";
-  return { code, message: x?.message ?? String(e), cause: e };
-};
+// Error normalization (PostgREST / Auth / Storage -> BackendError) lives in
+// ./errors.ts so the SQLSTATE taxonomy can be unit-tested in isolation.
+import { toBackendError } from "./errors.js";
 
 // ---------------------------------------------------------------------------
 // Config
