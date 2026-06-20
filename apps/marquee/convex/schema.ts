@@ -53,6 +53,23 @@ export default defineSchema(
       character: v.string(),
       billing: v.number(),
     }).index("by_movieId", ["movieId"]),
+
+    // Phase 3: auth + RBAC. userId is the shared-issuer subject (Supabase auth uid),
+    // so identity matches the Supabase backend and survives migration.
+    profiles: defineTable({
+      userId: v.string(),
+      role: v.string(), // guest | member | editor | admin
+      displayName: v.string(),
+    }).index("by_userId", ["userId"]),
+
+    reviews: defineTable({
+      movieId: v.string(),
+      userId: v.string(),
+      rating: v.number(),
+      body: v.string(),
+    })
+      .index("by_movieId", ["movieId"])
+      .index("by_userId", ["userId"]),
   },
   { schemaValidation: false },
 );
