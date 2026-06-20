@@ -43,6 +43,8 @@ interface AuthContextValue {
   readonly ready: boolean;
   /** Convenience gate (server enforcement is the real guard): catalog write rights. */
   readonly canEditCatalog: boolean;
+  /** Admin-only affordances (the Migrate panel). UI gate only; ops use creds. */
+  readonly canAdmin: boolean;
   signIn(email: string, password: string): Promise<IdentityResult>;
   signUp(email: string, password: string): Promise<IdentityResult>;
   signOut(): Promise<void>;
@@ -166,6 +168,7 @@ export function AuthProvider({
       user,
       ready,
       canEditCatalog: user?.role === "editor" || user?.role === "admin",
+      canAdmin: user?.role === "admin",
       signIn,
       signUp,
       signOut,

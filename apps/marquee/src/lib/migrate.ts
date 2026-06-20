@@ -25,15 +25,37 @@ import type { BackendKind } from "./backend";
  * poster handle dangles on the target (an honest, documented limit — file
  * migration is out of scope).
  */
-export const MIGRATE_COLLECTIONS = [
+/** Catalog collections have NO row-level security: the portable CRUD writes them
+ *  on any backend with the public/anon client. */
+export const CATALOG_COLLECTIONS = [
   "genres",
   "people",
   "movies",
   "movieGenres",
   "credits",
-  "reviews",
-  "profiles",
 ] as const;
+
+/** User-owned collections are RLS-protected on Supabase (insert_own requires
+ *  `auth.uid() = userId`), so the browser's anon client CANNOT write them. They
+ *  migrate freely INTO Convex (ungated CRUD); writing them INTO Supabase needs
+ *  service credentials, so a `->supabase` cutover from the browser is
+ *  catalog-only (see `collectionsFor`). */
+export const USER_COLLECTIONS = ["reviews", "profiles"] as const;
+
+export const MIGRATE_COLLECTIONS = [...CATALOG_COLLECTIONS, ...USER_COLLECTIONS] as const;
+
+/**
+ * The collections a browser-driven cutover can actually write, by target. Into
+ * Convex: everything (its generic CRUD is ungated). Into Supabase: catalog only,
+ * because reviews/profiles RLS rejects the anon client — migrating user data into
+ * an RLS backend is an ops action that needs a service key, not a browser session.
+ * Stated in the panel, not hidden.
+ */
+export function collectionsFor(targetKind: BackendKind): readonly string[] {
+  return targetKind === "supabase"
+    ? [...CATALOG_COLLECTIONS]
+    : [...CATALOG_COLLECTIONS, ...USER_COLLECTIONS];
+}
 
 /** FK remap: `relations[collection][field] = targetCollection`. */
 export const MIGRATE_RELATIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
@@ -74,7 +96,7 @@ export function planMigration(
 ): Promise<MigratePlan> {
   const maxValueBytes = maxValueBytesFor(direction.to);
   return dryRunMigrate(source, target, {
-    collections: [...MIGRATE_COLLECTIONS],
+    collections: collectionsFor(direction.to),
     stripFields: stripFieldsFor(direction.from),
     batchSize: 200,
     ...(maxValueBytes ? { maxValueBytes } : {}),
@@ -90,7 +112,7 @@ export function runMigration(
 ): Promise<MigrateReport> {
   const maxValueBytes = maxValueBytesFor(direction.to);
   return migrate(source, target, {
-    collections: [...MIGRATE_COLLECTIONS],
+    collections: collectionsFor(direction.to),
     relations: MIGRATE_RELATIONS,
     stripFields: stripFieldsFor(direction.from),
     batchSize: 200,
