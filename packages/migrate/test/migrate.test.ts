@@ -241,6 +241,58 @@ describe("migrate(): resume + batch (P3)", () => {
     expect(report.collections.todos?.copied).toBe(5);
     expect(await listAll(target, "todos")).toHaveLength(5);
   });
+
+  it("rejects a row over maxValueBytes before inserting it (opt-in byte bound)", async () => {
+    const source = fresh();
+    const target = fresh();
+    await insertRow(source, "todos", { title: "small" });
+    await insertRow(source, "todos", { title: "BIG".repeat(5000) }); // ~15 KB body
+    await insertRow(source, "todos", { title: "also-small" });
+
+    const report = await migrate(source, target, { collections: ["todos"], maxValueBytes: 1000 });
+
+    expect(report.ok).toBe(false);
+    expect(report.error?.phase).toBe("copy");
+    expect(report.error?.error.code).toBe("validation");
+    expect(report.error?.error.message).toMatch(/maxValueBytes/);
+    // The oversized row never lands; only rows copied before it are on the target.
+    const landed = await listAll(target, "todos");
+    expect(landed.every((r) => (r.title as string).length < 100)).toBe(true);
+    expect(landed.length).toBeLessThan(3); // aborted before the third row
+  });
+
+  it("copies normally when every row is under maxValueBytes", async () => {
+    const source = fresh();
+    const target = fresh();
+    await insertRow(source, "todos", { title: "a" });
+    await insertRow(source, "todos", { title: "b" });
+
+    const report = await migrate(source, target, {
+      collections: ["todos"],
+      maxValueBytes: 1_000_000,
+    });
+
+    expect(report.ok).toBe(true);
+    expect(report.collections.todos?.copied).toBe(2);
+  });
+
+  it("measures a bigint value instead of throwing when maxValueBytes is set", async () => {
+    // JSON.stringify throws on bigint; a naive size guard would crash (an
+    // unhandled throw, breaking the never-throws contract) or wrongly reject a
+    // legitimate Convex int64. The guard must measure it (as its decimal string)
+    // and let a small row through.
+    const source = fresh();
+    const target = fresh();
+    await insertRow(source, "todos", { title: "a", count: 42n });
+
+    const report = await migrate(source, target, {
+      collections: ["todos"],
+      maxValueBytes: 1_000_000,
+    });
+
+    expect(report.ok).toBe(true);
+    expect(report.collections.todos?.copied).toBe(1);
+  });
 });
 
 describe("migrate(): fail-fast (P4)", () => {
