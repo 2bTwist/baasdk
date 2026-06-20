@@ -42,6 +42,9 @@ const build = spawnSync(
     "--outfile=demo/bundle.js",
     "--platform=browser",
     "--format=esm",
+    // Resolve @baas/* to workspace source via the root tsconfig paths, so the
+    // demo builds on a fresh clone with no prior package build (no dist/).
+    "--tsconfig=tsconfig.json",
   ],
   { cwd: root, stdio: "inherit" },
 );
