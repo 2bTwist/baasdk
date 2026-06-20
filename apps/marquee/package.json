@@ -6,11 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "convex:dev": "convex dev"
   },
   "dependencies": {
+    "@baas/adapter-convex": "workspace:^",
     "@baas/adapter-memory": "workspace:^",
+    "@baas/adapter-supabase": "workspace:^",
     "@baas/core": "workspace:^",
+    "@supabase/supabase-js": "^2",
+    "convex": "^1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
@@ -19,6 +25,7 @@
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^5.0.0",
     "typescript": "^5.7",
-    "vite": "^7"
+    "vite": "^7",
+    "vitest": "^3"
   }
 }

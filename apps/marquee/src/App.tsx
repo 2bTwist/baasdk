@@ -1,16 +1,33 @@
-import type { Backend } from "@baas/core";
-import { useMemo, useState } from "react";
+import type { Backend, DocumentId } from "@baas/core";
+import { useCallback, useMemo, useState } from "react";
 import { BackendBadge } from "./components/BackendBadge";
 import { BackendSwitcher } from "./components/BackendSwitcher";
+import { MovieDetail } from "./components/MovieDetail";
+import { MovieForm } from "./components/MovieForm";
 import { BACKENDS, type BackendKind, initialBackendKind, makeBackend } from "./lib/backend";
 import { Catalog } from "./routes/Catalog";
 
+/**
+ * Minimal view state, no router dependency. The catalog is the home view;
+ * `detail` and `form` carry the id they act on (`form` with no id is a create).
+ */
+type View =
+  | { readonly name: "catalog" }
+  | { readonly name: "detail"; readonly id: DocumentId }
+  | { readonly name: "form"; readonly id?: DocumentId };
+
 export function App(): React.JSX.Element {
   const [kind, setKind] = useState<BackendKind>(initialBackendKind);
+  const [view, setView] = useState<View>({ name: "catalog" });
 
   // Re-create the active backend whenever the kind changes. A fresh instance
-  // means a fresh store, so the catalog resets on switch (expected in Phase 0).
+  // means a fresh store; reset to the catalog so we never view a stale id.
   const backend: Backend = useMemo(() => makeBackend(kind), [kind]);
+
+  const onSelectBackend = useCallback((next: BackendKind): void => {
+    setKind(next);
+    setView({ name: "catalog" });
+  }, []);
 
   const choice = BACKENDS.find((b) => b.kind === kind);
   if (!choice) throw new Error(`unknown backend kind: ${kind}`);
@@ -18,16 +35,41 @@ export function App(): React.JSX.Element {
   return (
     <div className="wrap">
       <header className="app-header">
-        <span className="brand">
+        <button
+          type="button"
+          className="brand brand-btn"
+          onClick={() => setView({ name: "catalog" })}
+        >
           <span className="word">Marquee</span>
           <span className="tag">· a @baas dogfood</span>
-        </span>
+        </button>
         <div className="header-right">
-          <BackendSwitcher active={kind} onSelect={setKind} />
+          <BackendSwitcher active={kind} onSelect={onSelectBackend} />
           <BackendBadge kind={choice.kind} label={choice.label} color={choice.color} />
         </div>
       </header>
-      <Catalog backend={backend} />
+
+      {view.name === "catalog" ? (
+        <Catalog
+          backend={backend}
+          onOpen={(id) => setView({ name: "detail", id })}
+          onCreate={() => setView({ name: "form" })}
+        />
+      ) : view.name === "detail" ? (
+        <MovieDetail
+          backend={backend}
+          movieId={view.id}
+          onBack={() => setView({ name: "catalog" })}
+          onEdit={(id) => setView({ name: "form", id })}
+        />
+      ) : (
+        <MovieForm
+          backend={backend}
+          {...(view.id !== undefined ? { movieId: view.id } : {})}
+          onSaved={(id) => setView({ name: "detail", id })}
+          onCancel={() => setView({ name: "catalog" })}
+        />
+      )}
     </div>
   );
 }
