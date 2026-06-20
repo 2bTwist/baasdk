@@ -1,5 +1,4 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": ["**/_generated/**", "**/test/convex/**", "demo/**", "scripts/demo.mjs"],
-  "ignoreBinaries": ["esbuild"]
+  "ignore": ["**/_generated/**", "**/test/convex/**", "demo/**", "scripts/demo.mjs"]
 }
