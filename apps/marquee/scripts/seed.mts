@@ -273,6 +273,38 @@ const VARIANTS: readonly string[] = [
   ": Daybreak",
 ];
 
+/** A deterministic actor pool for the cast relation (Phase 2 join). */
+const ACTORS: readonly string[] = [
+  "Tilda Swinton",
+  "Oscar Isaac",
+  "Florence Pugh",
+  "Mahershala Ali",
+  "Saoirse Ronan",
+  "Adam Driver",
+  "Lupita Nyong'o",
+  "Cillian Murphy",
+  "Zendaya",
+  "Toni Collette",
+  "Riz Ahmed",
+  "Anya Taylor-Joy",
+  "Daniel Kaluuya",
+  "Rooney Mara",
+  "Steven Yeun",
+  "Rebecca Ferguson",
+];
+
+/** Character names cycled deterministically for actor credits. */
+const CHARACTERS: readonly string[] = [
+  "The Stranger",
+  "Captain Reyes",
+  "Dr. Lin",
+  "Eleanor",
+  "The Pilot",
+  "Marcus",
+  "Vivian",
+  "The Witness",
+];
+
 interface MovieSeed {
   readonly title: string;
   readonly year: number;
@@ -328,17 +360,31 @@ async function seed(backend: Backend): Promise<void> {
   }
   console.log(`  genres inserted: ${genreIdBySlug.size}`);
 
-  // 2. Movies + their join rows.
+  // 2. People: every director (from the base list) plus the actor pool. Map
+  // name -> inserted _id so credits can reference them (the Phase 2 join).
+  const personIdByName = new Map<string, DocumentId>();
+  const directors = [...new Set(BASE.map((b) => b.director))];
+  for (const name of [...directors, ...ACTORS]) {
+    const res = await backend.store.insert("people", { name, bio: "" });
+    if (!res.ok) throw new Error(`person ${name}: ${res.error.code} ${res.error.message}`);
+    personIdByName.set(name, res.data);
+  }
+  console.log(`  people inserted: ${personIdByName.size}`);
+
+  // 3. Movies, their genre join rows, and their credits (director + 3 actors).
   const movies = generateMovies(MOVIE_COUNT);
   let movieCount = 0;
   let joinCount = 0;
-  for (const m of movies) {
+  let creditCount = 0;
+  for (let i = 0; i < movies.length; i++) {
+    const m = movies[i];
+    if (!m) continue;
     const res = await backend.store.insert("movies", m);
     if (!res.ok) throw new Error(`movie "${m.title}": ${res.error.code} ${res.error.message}`);
     const movieId = res.data;
     movieCount++;
 
-    // Join rows: link this movie to each of its genres by their captured _ids.
+    // Genre join rows: link this movie to each of its genres by their captured _ids.
     for (const slug of m.genres) {
       const genreId = genreIdBySlug.get(slug);
       if (!genreId) continue; // a genre slug with no row; skip rather than fail the run
@@ -354,13 +400,44 @@ async function seed(backend: Backend): Promise<void> {
       joinCount++;
     }
 
+    // Credits: the director at billing 0, then three actors picked deterministically.
+    const directorId = personIdByName.get(m.director);
+    const cast: Array<{ name: string; role: string; character: string; billing: number }> = [];
+    if (directorId) cast.push({ name: m.director, role: "director", character: "", billing: 0 });
+    for (let k = 0; k < 3; k++) {
+      const actor = ACTORS[(i * 3 + k) % ACTORS.length];
+      const character = CHARACTERS[(i + k) % CHARACTERS.length];
+      if (actor && character) {
+        cast.push({ name: actor, role: "actor", character, billing: k + 1 });
+      }
+    }
+    for (const c of cast) {
+      const personId = personIdByName.get(c.name);
+      if (!personId) continue;
+      const creditRes = await backend.store.insert("credits", {
+        movieId: String(movieId),
+        personId: String(personId),
+        role: c.role,
+        character: c.character,
+        billing: c.billing,
+      });
+      if (!creditRes.ok) {
+        throw new Error(
+          `credit for "${m.title}": ${creditRes.error.code} ${creditRes.error.message}`,
+        );
+      }
+      creditCount++;
+    }
+
     if (movieCount % 50 === 0) console.log(`  movies inserted: ${movieCount}/${movies.length}`);
   }
 
   console.log(`\nSeed complete on ${kind}:`);
   console.log(`  genres:      ${genreIdBySlug.size}`);
+  console.log(`  people:      ${personIdByName.size}`);
   console.log(`  movies:      ${movieCount}`);
   console.log(`  movieGenres: ${joinCount}`);
+  console.log(`  credits:     ${creditCount}`);
 }
 
 const backend = buildBackend(kind);

@@ -385,7 +385,13 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
       .eq(this.pk, id)
       .maybeSingle();
     if (error) return err(toBackendError(error));
-    return ok((data as T | null) ?? null);
+    if (data === null) return ok(null);
+    // Surface the portable `_id` exactly as `list` does, so a fetched doc can be
+    // passed straight to patch/remove (and matches Convex, whose docs carry `_id`
+    // natively). Without this, `get` returned the raw row keyed by the pk column
+    // only, an inconsistency with `list`.
+    const row = data as Record<string, unknown>;
+    return ok({ _id: String(row[this.pk]) as DocumentId, ...row } as T);
   }
 
   async list<T = unknown>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>> {

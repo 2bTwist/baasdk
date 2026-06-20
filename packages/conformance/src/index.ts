@@ -154,9 +154,11 @@ export function runConformanceSuite(adapterName: string, makeBackend: MakeBacken
         const id = expectOk(await backend.store.insert("notes", { body: "hello", pinned: false }));
 
         const fetched = expectOk(
-          await backend.store.get<{ body: string; pinned: boolean }>("notes", id),
+          await backend.store.get<{ _id: unknown; body: string; pinned: boolean }>("notes", id),
         );
-        expect(fetched).toMatchObject({ body: "hello", pinned: false });
+        // get() surfaces the portable _id just like list(), so a fetched doc can
+        // be passed straight to patch/remove.
+        expect(fetched).toMatchObject({ _id: id, body: "hello", pinned: false });
 
         expectOk(await backend.store.patch("notes", id, { pinned: true }));
         const patched = expectOk(await backend.store.get<{ pinned: boolean }>("notes", id));
