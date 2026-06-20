@@ -17,7 +17,7 @@ import {
   ok,
   type Result,
 } from "@baas/core";
-import { type MigrateEndpoint, type MigrateProgress, migrate } from "@baas/migrate";
+import { dryRunMigrate, type MigrateEndpoint, type MigrateProgress, migrate } from "@baas/migrate";
 import { describe, expect, it } from "vitest";
 
 type Row = Record<string, unknown>;
@@ -420,5 +420,74 @@ describe("migrate(): fail-fast (P4)", () => {
     expect(report.error?.error.message).toMatch(/read it back/i);
     // It aborts on the FIRST inserted row, before copying the rest.
     expect(report.collections.todos?.copied).toBe(1);
+  });
+});
+
+describe("dryRunMigrate(): projection without writes (P5)", () => {
+  it("reports toCopy for a fresh target and leaves it untouched", async () => {
+    const source = fresh();
+    const target = fresh();
+    await insertRow(source, "todos", { title: "a" });
+    await insertRow(source, "todos", { title: "b" });
+    await insertRow(source, "todos", { title: "c" });
+
+    const plan = await dryRunMigrate(source, target, { collections: ["todos"] });
+
+    expect(plan.ok).toBe(true);
+    expect(plan.collections.todos).toEqual({ total: 3, toCopy: 3, toSkip: 0 });
+    // Nothing was written to the target.
+    expect(await listAll(target, "todos")).toHaveLength(0);
+  });
+
+  it("reports toSkip for rows already migrated (after a real run)", async () => {
+    const source = fresh();
+    const target = fresh();
+    await insertRow(source, "todos", { title: "a" });
+    await insertRow(source, "todos", { title: "b" });
+    await migrate(source, target, { collections: ["todos"] }); // copies both
+
+    await insertRow(source, "todos", { title: "c" }); // a new row appears
+    const plan = await dryRunMigrate(source, target, { collections: ["todos"] });
+
+    expect(plan.ok).toBe(true);
+    expect(plan.collections.todos).toEqual({ total: 3, toCopy: 1, toSkip: 2 });
+    expect(await listAll(target, "todos")).toHaveLength(2); // still untouched
+  });
+
+  it("flags an oversized row (maxValueBytes) the real run would reject, without writing", async () => {
+    const source = fresh();
+    const target = fresh();
+    await insertRow(source, "todos", { title: "small" });
+    await insertRow(source, "todos", { title: "BIG".repeat(5000) });
+
+    const plan = await dryRunMigrate(source, target, {
+      collections: ["todos"],
+      maxValueBytes: 1000,
+    });
+
+    expect(plan.ok).toBe(false);
+    expect(plan.error?.phase).toBe("copy");
+    expect(plan.error?.error.code).toBe("validation");
+    expect(plan.error?.error.message).toMatch(/maxValueBytes/);
+    expect(await listAll(target, "todos")).toHaveLength(0); // pure read, no writes
+  });
+
+  it("flags a source row missing a usable _id", async () => {
+    const target = fresh();
+    const badSource: MigrateEndpoint = {
+      store: {
+        list<T = unknown>(_c: string, _o?: ListOptions): Promise<Result<ListPage<T>>> {
+          return Promise.resolve(ok({ items: [{ title: "a" } as unknown as T], nextCursor: null }));
+        },
+        insert: (c, v) => target.store.insert(c, v),
+        patch: (c, id, v) => target.store.patch(c, id, v),
+        get: (c, id) => target.store.get(c, id),
+      },
+    };
+
+    const plan = await dryRunMigrate(badSource, target, { collections: ["todos"] });
+
+    expect(plan.ok).toBe(false);
+    expect(plan.error?.error.code).toBe("validation");
   });
 });
