@@ -133,6 +133,7 @@ per-backend by design.
 | `@baas/conformance` | one suite, parameterized by a constructor | ✅ |
 | `@baas/adapter-supabase` | Supabase (PostgREST / Auth / Storage / opt-in Realtime) | ✅ |
 | `@baas/adapter-convex` | Convex (reactive, JWT-verify auth, storage) | ✅ |
+| `@baas/migrate` | one-time data cutover between any two backends | ✅ |
 
 Every divergence between backends is a declared capability flag, asserted in both
 directions by the suite. See the generated **[capability matrix](docs/CAPABILITIES.md)**.
@@ -189,6 +190,8 @@ The point of the abstraction is the portable core, not to hide the backend.
 - **`@baas/adapter-convex`**: the second real adapter, and the proof the
   contract is not Supabase-shaped: reactive `subscribe`, JWT-verify-only auth,
   and deployable server helpers for generic CRUD. See its README.
+- **`@baas/migrate`**: a one-time data cutover between any two backends, built on
+  the core `list`/`insert`/`patch` primitives (no provider SDK). See its README.
 
 ## Develop
 
