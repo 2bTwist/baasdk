@@ -1,4 +1,11 @@
-# baasdk
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/baasdk-mark-dark.svg" />
+    <img src="assets/baasdk-mark.svg" width="76" height="76" alt="baasdk" />
+  </picture>
+</p>
+
+<h1 align="center">baasdk</h1>
 
 > One portable TypeScript contract over **Supabase**, **Convex**, and an
 > in-memory backend: document CRUD, auth, and file storage, with declared
