@@ -1,5 +1,6 @@
 import type { Backend, DocumentId } from "@baas/core";
 import { useCallback, useEffect, useState } from "react";
+import { posterUrl, uploadPoster } from "../lib/files";
 import {
   createMovie,
   type Genre,
@@ -31,6 +32,8 @@ interface FormState {
   genres: readonly string[];
   /** The primary genre slug; must be one of `genres`. */
   primaryGenre: string;
+  /** Phase 4: opaque poster file handle (empty until one is uploaded). */
+  posterFile: string;
 }
 
 const EMPTY: FormState = {
@@ -41,6 +44,7 @@ const EMPTY: FormState = {
   synopsis: "",
   genres: [],
   primaryGenre: "",
+  posterFile: "",
 };
 
 /** Seed form state from a loaded movie. */
@@ -53,6 +57,7 @@ function fromMovie(movie: Movie): FormState {
     synopsis: movie.synopsis,
     genres: movie.genres,
     primaryGenre: movie.primaryGenre,
+    posterFile: movie.posterFile ?? "",
   };
 }
 
@@ -73,6 +78,12 @@ export function MovieForm({
   const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Phase 4 poster upload state: a preview URL + an in-flight flag. The upload
+  // goes through the portable file port the moment a file is chosen, so by save
+  // time `form.posterFile` already holds the stored handle.
+  const [posterPreview, setPosterPreview] = useState<string | null>(null);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
 
   // Load the genre list for the multi-select, plus the movie when editing.
   useEffect(() => {
@@ -99,9 +110,47 @@ export function MovieForm({
     };
   }, [backend, movieId, editing]);
 
+  // When editing a movie that already has a poster, resolve its handle to a URL
+  // for the preview (the same getUrl the detail page uses).
+  useEffect(() => {
+    let active = true;
+    const handle = form.posterFile;
+    if (!handle) {
+      setPosterPreview(null);
+      return;
+    }
+    void (async () => {
+      const result = await posterUrl(backend, handle);
+      if (active && result.ok) setPosterPreview(result.data);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [backend, form.posterFile]);
+
   const set = useCallback(<K extends keyof FormState>(key: K, value: FormState[K]): void => {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  /** Upload the chosen image through the file port, then keep its handle on the form. */
+  const onPosterChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      setUploadingPoster(true);
+      setError(null);
+      // Show the local file immediately while the upload + getUrl round-trips.
+      setPosterPreview(URL.createObjectURL(file));
+      const result = await uploadPoster(backend, file);
+      setUploadingPoster(false);
+      if (!result.ok) {
+        setError(`Poster upload failed: ${result.message}`);
+        return;
+      }
+      setForm((prev) => ({ ...prev, posterFile: result.data }));
+    },
+    [backend],
+  );
 
   /** Toggle a genre slug, keeping `primaryGenre` valid (it must stay selected). */
   const toggleGenre = useCallback((slug: string): void => {
@@ -135,6 +184,7 @@ export function MovieForm({
         synopsis: form.synopsis.trim(),
         genres: form.genres,
         primaryGenre,
+        ...(form.posterFile ? { posterFile: form.posterFile } : {}),
       };
 
       setSaving(true);
@@ -229,6 +279,30 @@ export function MovieForm({
           </label>
 
           <div className="field">
+            <span className="field-label">Poster</span>
+            <div className="poster-upload">
+              {posterPreview ? (
+                <img className="poster-thumb" src={posterPreview} alt="Poster preview" />
+              ) : (
+                <div className="poster-thumb poster-thumb-empty" aria-hidden="true">
+                  No poster
+                </div>
+              )}
+              <div className="poster-upload-controls">
+                <input
+                  type="file"
+                  accept="image/*"
+                  aria-label="Poster image"
+                  onChange={(e) => void onPosterChange(e)}
+                />
+                <span className="muted-note">
+                  {uploadingPoster ? "Uploading…" : "Uploaded via the portable file port."}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="field">
             <span className="field-label">Genres</span>
             <div className="genre-chips">
               {genres.map((g) => {
@@ -269,7 +343,7 @@ export function MovieForm({
           ) : null}
 
           <div className="form-actions">
-            <button type="submit" className="add-btn" disabled={saving}>
+            <button type="submit" className="add-btn" disabled={saving || uploadingPoster}>
               {saving ? "Saving…" : editing ? "Save changes" : "Create movie"}
             </button>
             <button type="button" className="link-btn" onClick={onCancel} disabled={saving}>

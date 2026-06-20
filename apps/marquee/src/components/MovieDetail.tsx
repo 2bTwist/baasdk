@@ -2,6 +2,7 @@ import type { Backend, DocumentId } from "@baas/core";
 import { useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
 import { getMovieCredits, joinsServerSide } from "../lib/enrich";
+import { posterUrl } from "../lib/files";
 import { type Genre, getMovie, listGenres, type Movie, type WithId } from "../lib/movies";
 import type { CastMember, MarqueeSchema } from "../lib/schema";
 import { CastList } from "./CastList";
@@ -40,6 +41,7 @@ export function MovieDetail({
   const [castError, setCastError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [posterSrc, setPosterSrc] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -69,6 +71,24 @@ export function MovieDetail({
     };
   }, [backend, movieId]);
 
+  // Resolve the movie's poster handle to a URL through the portable file port.
+  // The SAME getUrl works on Supabase Storage and Convex storage.
+  useEffect(() => {
+    let active = true;
+    const handle = movie?.posterFile;
+    if (!handle) {
+      setPosterSrc(null);
+      return;
+    }
+    void (async () => {
+      const result = await posterUrl(backend, handle);
+      if (active && result.ok) setPosterSrc(result.data);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [backend, movie?.posterFile]);
+
   const genreLabel = (slug: string): string => genreNames.get(slug) ?? slug;
 
   // How the credits join ran on the active backend (the Phase 2 thesis, made visible).
@@ -95,8 +115,14 @@ export function MovieDetail({
         <p className="muted-note">Loading…</p>
       ) : movie ? (
         <article className="detail">
-          <div className="detail-poster" aria-hidden="true">
-            <span className="poster-initial">{movie.title.charAt(0).toUpperCase()}</span>
+          <div className="detail-poster">
+            {posterSrc ? (
+              <img className="detail-poster-img" src={posterSrc} alt={`${movie.title} poster`} />
+            ) : (
+              <span className="poster-initial" aria-hidden="true">
+                {movie.title.charAt(0).toUpperCase()}
+              </span>
+            )}
           </div>
           <div className="detail-body">
             <div className="detail-meta">

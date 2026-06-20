@@ -31,6 +31,21 @@ export interface MovieRating {
   readonly count: number;
 }
 
+/**
+ * One reviews row as the detail page renders it. A named READ operation (not the
+ * portable `list`) on purpose: Phase 4 makes the review feed LIVE, and a named
+ * query is the reactive seam — `store.subscribe("movieReviews", …)` is natively
+ * reactive on Convex, and reactive on Supabase once its `realtime` watch is
+ * declared. `_id` is the portable handle for own-only edit/delete.
+ */
+export interface ReviewRow {
+  readonly _id: string;
+  readonly movieId: string;
+  readonly userId: string;
+  readonly rating: number;
+  readonly body: string;
+}
+
 /** A named query that takes no arguments. */
 type NoArgs = Record<string, never>;
 
@@ -52,6 +67,10 @@ export interface MarqueeSchema extends StoreSchema {
     readonly movieRating: {
       readonly args: { readonly movieId: string };
       readonly result: MovieRating;
+    };
+    readonly movieReviews: {
+      readonly args: { readonly movieId: string };
+      readonly result: ReviewRow[];
     };
   };
   readonly mutations: {

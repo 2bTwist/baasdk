@@ -440,6 +440,27 @@ async function seed(backend: Backend): Promise<void> {
   console.log(`  credits:     ${creditCount}`);
 }
 
+/**
+ * Phase 4: ensure the `posters` Storage bucket exists (Supabase only; Convex
+ * needs no bucket). Idempotent — a "already exists" error is success. Convex's
+ * file store has no buckets, so this is a no-op there.
+ */
+async function ensurePostersBucket(target: Kind, backend: Backend): Promise<void> {
+  if (target !== "supabase") return;
+  const storage = backend.files.native() as {
+    createBucket: (
+      id: string,
+      opts: { public: boolean },
+    ) => Promise<{ error: { message: string } | null }>;
+  };
+  const { error } = await storage.createBucket("posters", { public: true });
+  if (error && !/already exists/i.test(error.message)) {
+    throw new Error(`could not create posters bucket: ${error.message}`);
+  }
+  console.log("  posters bucket: ready");
+}
+
 const backend = buildBackend(kind);
+await ensurePostersBucket(kind, backend);
 await seed(backend);
 process.exit(0);

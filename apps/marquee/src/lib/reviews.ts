@@ -2,7 +2,7 @@ import type { MemoryContext } from "@baas/adapter-memory";
 import type { Backend, DocumentId } from "@baas/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { anyApi, type FunctionReference } from "convex/server";
-import type { MarqueeSchema, MovieRating } from "./schema";
+import type { MarqueeSchema, MovieRating, ReviewRow } from "./schema";
 
 /**
  * Phase 3: the review WRITE path (own-only) + the avg-rating aggregation. Writes
@@ -81,6 +81,28 @@ export const supabaseRatingQuery = async (
   return { avg, count };
 };
 
+// Phase 4: the LIVE review feed as a named query (subscribe()-able). reviews_select
+// is open under RLS, so this reads on the anon/authed client. Map PostgREST `id` to
+// the portable `_id` the UI's own-only controls use.
+export const supabaseReviewsQuery = async (
+  sb: SupabaseClient,
+  { movieId }: { movieId: string },
+): Promise<ReviewRow[]> => {
+  const { data, error } = await sb
+    .from("reviews")
+    .select("id, movieId, userId, rating, body")
+    .eq("movieId", movieId)
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((r) => ({
+    _id: r.id as string,
+    movieId: r.movieId as string,
+    userId: r.userId as string,
+    rating: r.rating as number,
+    body: r.body as string,
+  }));
+};
+
 // ---------------------------------------------------------------------------
 // Convex: deployed mutations + query (ctx.auth enforced).
 // ---------------------------------------------------------------------------
@@ -90,6 +112,7 @@ const convexReviewsApi = anyApi.reviews as unknown as {
   editReview: FunctionReference<"mutation">;
   deleteReview: FunctionReference<"mutation">;
   movieRating: FunctionReference<"query">;
+  movieReviews: FunctionReference<"query">;
 };
 export const convexReviewMutations = {
   addReview: convexReviewsApi.addReview,
@@ -97,6 +120,7 @@ export const convexReviewMutations = {
   deleteReview: convexReviewsApi.deleteReview,
 };
 export const convexRatingQuery = convexReviewsApi.movieRating;
+export const convexReviewsQuery = convexReviewsApi.movieReviews;
 
 // ---------------------------------------------------------------------------
 // Memory: no auth (open dev sandbox), a single synthetic user.
@@ -144,6 +168,20 @@ export const memoryRatingQuery = (
   const avg = count === 0 ? 0 : ratings.reduce((s, r) => s + r, 0) / count;
   return { avg, count };
 };
+export const memoryReviewsQuery = (
+  ctx: MemoryContext,
+  { movieId }: { movieId: string },
+): ReviewRow[] =>
+  ctx
+    .all<MemReview>("reviews")
+    .filter((r) => r.movieId === movieId)
+    .map((r) => ({
+      _id: r._id,
+      movieId: r.movieId,
+      userId: r.userId,
+      rating: r.rating,
+      body: r.body,
+    }));
 
 // ---------------------------------------------------------------------------
 // UI-facing data functions (throw-free Outcome).

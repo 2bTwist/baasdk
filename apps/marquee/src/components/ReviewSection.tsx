@@ -1,15 +1,15 @@
 import type { Backend, DocumentId } from "@baas/core";
+import { supportsReactivity } from "@baas/core";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "../lib/auth";
-import { addReview, deleteReview, getMovieRating, listReviews, type Review } from "../lib/reviews";
-import type { MarqueeSchema, MovieRating } from "../lib/schema";
+import { addReview, deleteReview } from "../lib/reviews";
+import type { MarqueeSchema } from "../lib/schema";
+import { useLiveQuery } from "../lib/useLiveQuery";
 
 interface ReviewSectionProps {
   readonly backend: Backend<MarqueeSchema>;
   readonly movieId: DocumentId;
 }
-
-type StoredReview = Review & { readonly _id: DocumentId };
 
 const RATINGS: readonly number[] = [1, 2, 3, 4, 5];
 
@@ -20,19 +20,29 @@ function stars(rating: number): string {
 }
 
 /**
- * Phase 3 reviews UI for the movie detail page. Reads the movie's reviews + the
- * aggregate rating on mount (and re-reads after any write), then renders the
- * list with own-only edit/delete affordances and a single add/edit form for the
- * signed-in user. All permission enforcement lives in the backend; this only
- * shows or hides controls and surfaces whatever message a write returns.
+ * Phase 4 reviews UI for the movie detail page. The review feed + aggregate
+ * rating are LIVE: both ride `store.subscribe()` through `useLiveQuery`, so a
+ * review posted in another tab (or by another user) appears here without a
+ * reload — natively on Convex, and on Supabase via its Realtime watch. A local
+ * `refreshKey` bump after the user's OWN write makes the same tab update
+ * instantly rather than waiting on the realtime round-trip. All permission
+ * enforcement lives in the backend; this only shows or hides controls and
+ * surfaces whatever message a write returns.
  */
 export function ReviewSection({ backend, movieId }: ReviewSectionProps): React.JSX.Element {
   const { user } = useAuth();
 
-  const [reviews, setReviews] = useState<ReadonlyArray<StoredReview>>([]);
-  const [rating, setRating] = useState<MovieRating>({ avg: 0, count: 0 });
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Bumped after the signed-in user's own write to force an immediate re-read
+  // (cross-tab/other-user changes arrive through the live subscription itself).
+  const [refreshKey, setRefreshKey] = useState(0);
+  const reviewsState = useLiveQuery(backend, "movieReviews", { movieId }, refreshKey);
+  const ratingState = useLiveQuery(backend, "movieRating", { movieId }, refreshKey);
+
+  const reviews = reviewsState.data ?? [];
+  const rating = ratingState.data ?? { avg: 0, count: 0 };
+  const loading = reviewsState.loading;
+  const loadError = reviewsState.error;
+  const live = supportsReactivity(backend);
 
   // The add/edit form's own state and the action-level error (writes).
   const [formRating, setFormRating] = useState(5);
@@ -42,26 +52,7 @@ export function ReviewSection({ backend, movieId }: ReviewSectionProps): React.J
 
   const myReview = user ? (reviews.find((r) => r.userId === user.userId) ?? null) : null;
 
-  const load = useCallback(async (): Promise<void> => {
-    setLoadError(null);
-    const [listResult, ratingResult] = await Promise.all([
-      listReviews(backend, movieId),
-      getMovieRating(backend, movieId),
-    ]);
-    if (!listResult.ok) {
-      setLoadError(listResult.message);
-      setReviews([]);
-    } else {
-      setReviews(listResult.data);
-    }
-    if (ratingResult.ok) setRating(ratingResult.data);
-    setLoading(false);
-  }, [backend, movieId]);
-
-  useEffect(() => {
-    setLoading(true);
-    void load();
-  }, [load]);
+  const refresh = useCallback((): void => setRefreshKey((k) => k + 1), []);
 
   // Seed the form from the user's existing review whenever it (or the user) changes.
   useEffect(() => {
@@ -85,11 +76,11 @@ export function ReviewSection({ backend, movieId }: ReviewSectionProps): React.J
       setActionError(result.message);
       return;
     }
-    await load();
-  }, [backend, movieId, formRating, formBody, load]);
+    refresh();
+  }, [backend, movieId, formRating, formBody, refresh]);
 
   const remove = useCallback(
-    async (reviewId: DocumentId): Promise<void> => {
+    async (reviewId: string): Promise<void> => {
       setBusy(true);
       setActionError(null);
       const result = await deleteReview(backend, reviewId);
@@ -98,9 +89,9 @@ export function ReviewSection({ backend, movieId }: ReviewSectionProps): React.J
         setActionError(result.message);
         return;
       }
-      await load();
+      refresh();
     },
-    [backend, load],
+    [backend, refresh],
   );
 
   const heading =
@@ -115,7 +106,12 @@ export function ReviewSection({ backend, movieId }: ReviewSectionProps): React.J
 
   return (
     <section className="reviews" aria-label="Reviews">
-      <h2 className="reviews-heading">{heading}</h2>
+      <div className="reviews-head">
+        <h2 className="reviews-heading">{heading}</h2>
+        <span className="live-badge" title={live ? "Reviews update live" : "One-shot read"}>
+          {live ? "● live" : "○ static"}
+        </span>
+      </div>
 
       {loadError ? (
         <div className="error" role="alert">
