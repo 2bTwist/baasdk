@@ -114,7 +114,6 @@
       .rig { display: grid; grid-template-columns: 1fr minmax(400px, 480px) 1fr; gap: 20px; align-items: start; }
 
       .deck { background: var(--ink-2); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; position: relative; min-width: 0; display: flex; flex-direction: column; }
-      .deck::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--accent); opacity: 0.7; }
       .deck[data-b="supabase"] { --accent: #109a64; --tint: rgba(16, 154, 100, 0.1); --ring: rgba(16, 154, 100, 0.4); --halo: rgba(16, 154, 100, 0.18); --flash: rgba(16, 154, 100, 0.18); }
       .deck[data-b="convex"] { --accent: #db4f24; --tint: rgba(219, 79, 36, 0.1); --ring: rgba(219, 79, 36, 0.4); --halo: rgba(219, 79, 36, 0.18); --flash: rgba(219, 79, 36, 0.18); }
       .deck-hd { display: flex; align-items: center; gap: 13px; padding: 18px 20px 17px; border-bottom: 1px solid var(--line-soft); }
@@ -149,7 +148,6 @@
       .deck-ft a:hover { color: var(--accent); }
 
       .app { background: linear-gradient(180deg, var(--ink-3), var(--ink-2)); border: 1px solid var(--line); border-radius: 16px; padding: 22px 22px 18px; box-shadow: 0 20px 50px -36px var(--shadow); position: relative; }
-      .app::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; border-radius: 16px 16px 0 0; background: linear-gradient(90deg, var(--from), var(--to)); opacity: 0.85; }
       .app-tag { font-family: var(--disp); font-weight: 600; font-size: 18px; text-align: center; margin: 2px 0 18px; }
       .app-tag span { color: var(--muted); font-family: var(--mono); font-weight: 400; font-size: 13px; }
       .field-label { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 9px; }
