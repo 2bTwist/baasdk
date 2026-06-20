@@ -37,7 +37,9 @@ export function App(): React.JSX.Element {
 
   return (
     <AuthProvider backend={backend} backendKind={kind}>
-      <div className="wrap">
+      {/* Expose the active backend's accent as a CSS var so any descendant
+          (e.g. the live badge) can color itself by backend at a glance. */}
+      <div className="wrap" style={{ "--backend-accent": choice.color } as React.CSSProperties}>
         <header className="app-header">
           <button
             type="button"

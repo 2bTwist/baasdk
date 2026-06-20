@@ -321,6 +321,27 @@ describe("adapter-supabase reactive subscribe()", () => {
     expect(received).toHaveLength(countAtUnsub); // no error delivered
   });
 
+  it("opens a channel without crypto.randomUUID (non-secure-context browser)", async () => {
+    // crypto.randomUUID is defined ONLY in secure contexts (https / localhost).
+    // On a plain-http LAN-IP origin it is undefined; the channel-name id must not
+    // depend on it. Tripwire: reverting uniqueId() to a bare crypto.randomUUID()
+    // call makes this throw "crypto.randomUUID is not a function" and the test
+    // fails (verified by hand during authoring).
+    const cryptoObj = (globalThis as { crypto?: { randomUUID?: unknown } }).crypto;
+    const original = cryptoObj?.randomUUID;
+    if (cryptoObj) cryptoObj.randomUUID = undefined;
+    try {
+      const received: Array<Result<string>> = [];
+      const backend = makeBackend({ fake, watch: true });
+      expect(() => backend.store.subscribe("listTodos", {}, (r) => received.push(r))).not.toThrow();
+      await flush();
+      expect(fake.channels).toHaveLength(1); // a channel was opened despite no randomUUID
+      expect(dataOf(at(received, 0))).toBe("v0");
+    } finally {
+      if (cryptoObj) cryptoObj.randomUUID = original;
+    }
+  });
+
   it("a bare table-name watch subscribes to the whole table (no filter)", async () => {
     const backend = makeBackend({ fake, watch: true }); // tables: ["todos"]
     backend.store.subscribe("listTodos", {}, () => {});

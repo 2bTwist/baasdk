@@ -23,6 +23,8 @@ export default defineSchema(
       director: v.string(),
       primaryGenre: v.string(),
       genres: v.array(v.string()),
+      // Phase 4: opaque file-port handle (a Convex storage id) for the poster.
+      posterFile: v.optional(v.string()),
     })
       .index("by_year", ["year"])
       .index("by_title", ["title"])

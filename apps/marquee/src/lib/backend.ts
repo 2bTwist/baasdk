@@ -6,10 +6,13 @@ import { convexQueries, memoryQueries, supabaseQueries } from "./enrich";
 import {
   convexRatingQuery,
   convexReviewMutations,
+  convexReviewsQuery,
   memoryRatingQuery,
   memoryReviewMutations,
+  memoryReviewsQuery,
   supabaseRatingQuery,
   supabaseReviewMutations,
+  supabaseReviewsQuery,
 } from "./reviews";
 import type { MarqueeSchema } from "./schema";
 
@@ -53,7 +56,11 @@ export function makeBackend(kind: BackendKind): Backend<MarqueeSchema> {
   switch (kind) {
     case "memory":
       return createMemoryBackend<MarqueeSchema>({
-        queries: { ...memoryQueries, movieRating: memoryRatingQuery },
+        queries: {
+          ...memoryQueries,
+          movieRating: memoryRatingQuery,
+          movieReviews: memoryReviewsQuery,
+        },
         mutations: memoryReviewMutations,
       });
 
@@ -66,8 +73,22 @@ export function makeBackend(kind: BackendKind): Backend<MarqueeSchema> {
       return createSupabaseBackend<MarqueeSchema>({
         url,
         key,
-        queries: { ...supabaseQueries, movieRating: supabaseRatingQuery },
+        // Phase 4: posters live in this Storage bucket (created by the seed).
+        bucket: "posters",
+        queries: {
+          ...supabaseQueries,
+          movieRating: supabaseRatingQuery,
+          movieReviews: supabaseReviewsQuery,
+        },
         mutations: supabaseReviewMutations,
+        // Phase 4: opt Supabase into live reviews. Any `realtime` entry flips
+        // reactiveQueries to true; both rating + feed re-run when `reviews`
+        // changes (requires the table in the supabase_realtime publication —
+        // migration 0004). Convex needs no equivalent (it tracks read-sets).
+        realtime: {
+          movieRating: { tables: ["reviews"] },
+          movieReviews: { tables: ["reviews"] },
+        },
       });
     }
 
@@ -76,7 +97,11 @@ export function makeBackend(kind: BackendKind): Backend<MarqueeSchema> {
       if (!url) throw new Error("Convex backend needs VITE_CONVEX_URL.");
       return createConvexBackend<MarqueeSchema>({
         url,
-        queries: { ...convexQueries, movieRating: convexRatingQuery },
+        queries: {
+          ...convexQueries,
+          movieRating: convexRatingQuery,
+          movieReviews: convexReviewsQuery,
+        },
         mutations: convexReviewMutations,
       });
     }

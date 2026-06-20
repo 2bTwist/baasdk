@@ -429,10 +429,50 @@ main {
 
 .detail-poster {
   aspect-ratio: 2 / 3;
+  overflow: hidden;
 }
 
 .detail-poster .poster-initial {
   font-size: 64px;
+}
+
+.detail-poster-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Phase 4: poster upload control in the movie form. */
+.poster-upload {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.poster-upload .poster-thumb {
+  flex: none;
+  width: 96px;
+  aspect-ratio: 2 / 3;
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  object-fit: cover;
+  background: linear-gradient(150deg, var(--ink), var(--line-soft));
+}
+
+.poster-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--faint);
+}
+
+.poster-upload-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .detail-meta {
@@ -648,12 +688,30 @@ main {
   border-top: 1px solid var(--line-soft);
 }
 
+.reviews-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
 .reviews-heading {
   font-family: var(--disp);
   font-weight: 700;
   font-size: 20px;
   letter-spacing: -0.01em;
-  margin: 0 0 16px;
+  margin: 0;
+}
+
+.live-badge {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  /* Follows the active backend (green Supabase / orange Convex / blue memory). */
+  color: var(--backend-accent, var(--cx));
+  white-space: nowrap;
 }
 
 .review-form {

@@ -23,8 +23,9 @@ enabled = true
 enabled = false
 
 [realtime]
-# Off for Phase 1 (one-shot CRUD). Phase 4 turns this on for live review counts.
-enabled = false
+# Phase 4: live review counts/feed. Requires the watched tables in the
+# supabase_realtime publication (migration 0004).
+enabled = true
 
 [studio]
 enabled = false
@@ -35,8 +36,10 @@ enabled = true
 site_url = "http://127.0.0.1:5174"
 
 [storage]
-# Poster uploads arrive in Phase 4.
-enabled = false
+# Phase 4: poster uploads via the file port (the `posters` bucket is created by
+# the seed). 5 MiB cap is plenty for a poster image.
+enabled = true
+file_size_limit = "5MiB"
 
 [analytics]
 enabled = false

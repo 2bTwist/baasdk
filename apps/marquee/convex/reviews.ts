@@ -117,3 +117,24 @@ export const movieRating = queryGeneric({
     return { avg, count };
   },
 });
+
+// Phase 4: the live review feed. A plain Convex query is natively reactive, so
+// the adapter's subscribe() re-delivers this whenever a reviews row changes —
+// no per-table opt-in (the Supabase realtime watch's counterpart). `_id` is the
+// portable handle the UI's own-only edit/delete uses.
+export const movieReviews = queryGeneric({
+  args: { movieId: v.string() },
+  handler: async (ctx, { movieId }) => {
+    const reviews = (await ctx.db
+      .query("reviews")
+      .withIndex("by_movieId", (q) => q.eq("movieId", movieId))
+      .collect()) as ReviewDoc[];
+    return reviews.map((r) => ({
+      _id: r._id as string,
+      movieId: r.movieId,
+      userId: r.userId,
+      rating: r.rating,
+      body: r.body,
+    }));
+  },
+});

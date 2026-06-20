@@ -38,6 +38,12 @@ export interface Movie {
   readonly primaryGenre: string;
   /** Genre slugs, denormalized for display. */
   readonly genres: readonly string[];
+  /**
+   * Phase 4: opaque `FileHandle` for the poster, stored as a plain string (a
+   * Supabase `bucket::path` or a Convex storage id). Absent until a poster is
+   * uploaded; resolve to a URL with `backend.files.getUrl(handle)`.
+   */
+  readonly posterFile?: string;
 }
 
 /** A genre document. `slug` is the stable key movies reference. */

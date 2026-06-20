@@ -52,6 +52,28 @@ import { createClient, REALTIME_SUBSCRIBE_STATES } from "@supabase/supabase-js";
 import { toBackendError } from "./errors.js";
 
 // ---------------------------------------------------------------------------
+// Unique-id helper
+// ---------------------------------------------------------------------------
+
+let idCounter = 0;
+/**
+ * A unique-enough id for a Realtime channel name or a default Storage path.
+ * Prefers `crypto.randomUUID()`, but that API is exposed ONLY in SECURE
+ * CONTEXTS (https, or http on localhost) — on a plain-http origin such as a
+ * LAN-IP dev server (`http://192.168.x.x`) or any non-https deployment,
+ * `crypto.randomUUID` is `undefined` and calling it throws. Neither use needs
+ * cryptographic strength, so fall back to a time + counter + Math.random id,
+ * keeping `subscribe()` and `upload()` usable in every browser context.
+ */
+function uniqueId(): string {
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
+  if (typeof c?.randomUUID === "function") return c.randomUUID();
+  idCounter = (idCounter + 1) % Number.MAX_SAFE_INTEGER;
+  const rand = Math.random().toString(36).slice(2, 10);
+  return `${Date.now().toString(36)}-${idCounter.toString(36)}-${rand}`;
+}
+
+// ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
@@ -315,7 +337,7 @@ class SupabaseDocumentStore<S extends StoreSchema> implements DocumentStore<S> {
     // synchronously (force = true).
     deliver(++gen, true);
 
-    const channel = this.sb.channel(`baas:${operation}:${crypto.randomUUID()}`);
+    const channel = this.sb.channel(`baas:${operation}:${uniqueId()}`);
     for (const entry of watch.tables) {
       const table = typeof entry === "string" ? entry : entry.table;
       const filter = typeof entry === "string" ? undefined : entry.filter;
@@ -626,7 +648,7 @@ class SupabaseFileStore implements FileStore {
 
   async upload(data: Blob | ArrayBuffer, options?: UploadOptions): Promise<Result<FileHandle>> {
     const bucket = (options?.providerOptions?.bucket as string | undefined) ?? this.defaultBucket;
-    const path = options?.path ?? crypto.randomUUID();
+    const path = options?.path ?? uniqueId();
     const { data: res, error } = await this.sb.storage.from(bucket).upload(path, data, {
       ...(options?.contentType ? { contentType: options.contentType } : {}),
       upsert: true,
