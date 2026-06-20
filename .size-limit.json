@@ -3,5 +3,33 @@
     "name": "@baas/core (ESM, min+gzip)",
     "path": "packages/core/dist/index.js",
     "limit": "1 kB"
+  },
+  {
+    "name": "@baas/migrate (ESM, min+gzip; core external)",
+    "path": "packages/migrate/dist/index.js",
+    "import": "*",
+    "ignore": ["@baas/core"],
+    "limit": "2 kB"
+  },
+  {
+    "name": "@baas/adapter-memory (ESM, min+gzip; core external)",
+    "path": "packages/adapter-memory/dist/index.js",
+    "import": "*",
+    "ignore": ["@baas/core"],
+    "limit": "2.75 kB"
+  },
+  {
+    "name": "@baas/adapter-supabase (ESM, min+gzip; core + supabase-js external)",
+    "path": "packages/adapter-supabase/dist/index.js",
+    "import": "*",
+    "ignore": ["@baas/core", "@supabase/supabase-js"],
+    "limit": "3.75 kB"
+  },
+  {
+    "name": "@baas/adapter-convex (ESM, min+gzip; core + convex external)",
+    "path": "packages/adapter-convex/dist/index.js",
+    "import": "*",
+    "ignore": ["@baas/core", "convex"],
+    "limit": "2.75 kB"
   }
 ]
