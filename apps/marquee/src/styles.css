@@ -709,7 +709,8 @@ main {
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: var(--cx);
+  /* Follows the active backend (green Supabase / orange Convex / blue memory). */
+  color: var(--backend-accent, var(--cx));
   white-space: nowrap;
 }
 
