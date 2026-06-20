@@ -23,6 +23,13 @@
  * embed an old primary key must be remapped by the caller. Values are copied
  * verbatim; non-trivial schemas with type/precision drift (Postgres numeric vs JS
  * number, timestamps) need per-field coercion that v1 does not perform.
+ *
+ * Preconditions (see the README for the full version): a Supabase target needs a
+ * service-role key (or RLS policies granting read + write), because a read denied
+ * by RLS returns empty rather than erroring and would silently break resume.
+ * migrate guards this portably with a read-after-write check on the first row it
+ * copies into each collection: if the row cannot be read back, it aborts with a
+ * `validation` error rather than risking duplicates on a later re-run.
  */
 
 import type { BackendError, Cursor, DocumentId, DocumentStore, ListPage, Result } from "@baas/core";
@@ -30,11 +37,12 @@ import type { BackendError, Cursor, DocumentId, DocumentStore, ListPage, Result 
 /**
  * The slice of a `Backend` a migration touches. Typed structurally so any
  * `Backend<S>`, regardless of its named-operation schema, is accepted: `list`,
- * `insert`, and `patch` do not reference the schema generic, so this `Pick`
- * sidesteps generic variance. Pass a whole `Backend`; only `.store` is read.
+ * `insert`, `patch`, and `get` do not reference the schema generic, so this
+ * `Pick` sidesteps generic variance. Pass a whole `Backend`; only `.store` is
+ * read. (`get` is used by the read-after-write precondition check below.)
  */
 export type MigrateEndpoint = {
-  readonly store: Pick<DocumentStore, "list" | "insert" | "patch">;
+  readonly store: Pick<DocumentStore, "list" | "insert" | "patch" | "get">;
 };
 
 export interface MigrateOptions {
@@ -206,6 +214,18 @@ export async function migrate(
 
       const resume = await buildResumeIndex(target.store, collection, batchSize);
       let done = 0;
+      // Read-after-write precondition SENTINEL: checked once per collection on the
+      // first freshly-copied row (not every row — that would double the read cost).
+      // If that row inserts ok but cannot be read back, the target is silently
+      // filtering reads (the canonical case: a Supabase target reached with a
+      // non-service-role key, where RLS permits the insert but denies the select).
+      // That breaks resume catastrophically: `buildResumeIndex` would see an empty
+      // target on the NEXT run and re-copy everything, so abort loudly NOW with an
+      // actionable error rather than duplicating later. One healthy row is a strong
+      // signal the target is readable; it is a precondition probe, not a per-row
+      // guarantee. migrate stays provider-agnostic: it never names RLS at the port,
+      // it only asserts the portable invariant "what I just wrote, I can read back".
+      let readBackChecked = false;
       await eachPage(
         source.store,
         collection,
@@ -246,6 +266,25 @@ export async function migrate(
               });
               map.set(oldId, String(newId));
               count.copied++;
+              if (!readBackChecked) {
+                readBackChecked = true;
+                const wrote = unwrap(await target.store.get(collection, newId), {
+                  collection,
+                  phase: "copy",
+                  oldId,
+                });
+                if (wrote === null) {
+                  throw new MigrateAbort({
+                    collection,
+                    phase: "copy",
+                    oldId,
+                    error: {
+                      code: "validation",
+                      message: `inserted a row into "${collection}" but could not read it back; the target is filtering reads (e.g. a Supabase target reached without a service-role key, where RLS allows the insert but denies the select). Resume and idempotency require read access — use a service-role key or grant the migrating role read access on the target tables`,
+                    },
+                  });
+                }
+              }
             }
             done++;
             opts.onProgress?.({ phase: "copy", collection, done });

@@ -75,6 +75,38 @@ starting with `_`, so an underscore marker would make Convex unusable as a targe
 A source row whose `_id` is missing or non-scalar aborts the run with a
 `validation` error rather than silently corrupting the id map.
 
+## Preconditions
+
+### Supabase target: use a service-role key (full read + write)
+
+Construct the Supabase target backend with the **service-role key** (which
+bypasses RLS), or with a key whose RLS policies grant the migrating role **both
+insert and select** on every target table. The reason is asymmetric:
+
+- An insert that RLS **denies** fails loudly — the run stops fail-fast with that
+  error, so you notice immediately.
+- A select that RLS **denies** does NOT error — Supabase returns an empty result.
+  That is the dangerous case: migrate's resume scan would see an empty target and,
+  on a re-run, re-copy everything (duplicates). To stop this silent footgun,
+  migrate performs a **read-after-write check**: after the first row it copies
+  into each collection, it reads that row back, and aborts with a `validation`
+  error if the row is invisible ("inserted a row but could not read it back").
+  So a misconfigured target fails on the first row, not after duplicating later.
+
+migrate stays provider-agnostic — it never inspects RLS, it only asserts the
+portable invariant "what I just wrote, I can read back" — but Supabase reached
+without a service-role key is the case this protects you from.
+
+### Convex target: ids are re-minted, so the id map is mandatory
+
+A Convex target regenerates its own `_id` for every inserted row (system fields
+are reserved), so migrate **never preserves source ids** into Convex (or any
+target — the target always re-mints). The old-to-new mapping lives only in
+`report.idMap`. In-dataset foreign keys are remapped by the relink pass
+(`relations`); any reference that lives OUTSIDE the migrated dataset and embeds an
+old id (an external service, a cached URL, a client's stored id) must be remapped
+by you using `report.idMap`. Never promise id stability across a migration.
+
 ## Tests
 
 The contract is proven memory → memory in `test/migrate.test.ts` (the in-memory

@@ -246,8 +246,9 @@ jobs:
           # fetch-depth:0 above already has full history incl. origin/<base>;
           # a shallow re-fetch would truncate it and break the merge-base diff.
           changed="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
-          # Publishable packages only. @baas/conformance is ignored by changesets.
-          if echo "$changed" | grep -Eq '^packages/(core|adapter-[^/]+)/src/'; then
+          # Publishable packages only. @baas/conformance and @baas/migrate-conformance
+          # are test-suite packages, ignored by changesets.
+          if echo "$changed" | grep -Eq '^packages/(core|migrate|adapter-[^/]+)/src/'; then
             if ! echo "$changed" | grep -E '^\.changeset/[^/]+\.md$' | grep -qiv 'readme'; then
               echo "::error::A publishable package's src/ changed but no changeset was added. Run 'pnpm changeset'."
               exit 1
