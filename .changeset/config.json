@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@baas/conformance"]
+  "ignore": ["@baas/conformance", "@baas/migrate-conformance"]
 }

@@ -1,0 +1,50 @@
+{
+  "name": "@baas/migrate-conformance",
+  "version": "0.0.0",
+  "description": "The migrate cross-backend suite, parameterized by one real backend and run memory <-> real in both directions. Not published; a test-suite sibling to @baas/conformance.",
+  "keywords": [
+    "baas",
+    "backend-as-a-service",
+    "ports-and-adapters",
+    "typescript",
+    "esm",
+    "conformance",
+    "contract-testing",
+    "migration",
+    "test-suite",
+    "vitest"
+  ],
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/2bTwist/baasdk.git",
+    "directory": "packages/migrate-conformance"
+  },
+  "homepage": "https://github.com/2bTwist/baasdk/tree/main/packages/migrate-conformance#readme",
+  "bugs": "https://github.com/2bTwist/baasdk/issues",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@baas/adapter-memory": "workspace:^",
+    "@baas/core": "workspace:^",
+    "@baas/migrate": "workspace:^"
+  },
+  "peerDependencies": {
+    "vitest": "^3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7",
+    "vitest": "^3"
+  }
+}

@@ -81,6 +81,9 @@ importers:
       '@baas/conformance':
         specifier: workspace:^
         version: link:../conformance
+      '@baas/migrate-conformance':
+        specifier: workspace:^
+        version: link:../migrate-conformance
       '@edge-runtime/vm':
         specifier: ^5
         version: 5.0.0
@@ -128,6 +131,9 @@ importers:
       '@baas/conformance':
         specifier: workspace:^
         version: link:../conformance
+      '@baas/migrate-conformance':
+        specifier: workspace:^
+        version: link:../migrate-conformance
       '@supabase/supabase-js':
         specifier: ^2
         version: 2.108.2
@@ -175,6 +181,25 @@ importers:
       tsup:
         specifier: ^8
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.15)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7
+        version: 5.9.3
+      vitest:
+        specifier: ^3
+        version: 3.2.6(@edge-runtime/vm@5.0.0)(@types/node@25.9.3)(jiti@2.7.0)(yaml@2.9.0)
+
+  packages/migrate-conformance:
+    dependencies:
+      '@baas/adapter-memory':
+        specifier: workspace:^
+        version: link:../adapter-memory
+      '@baas/core':
+        specifier: workspace:^
+        version: link:../core
+      '@baas/migrate':
+        specifier: workspace:^
+        version: link:../migrate
+    devDependencies:
       typescript:
         specifier: ^5.7
         version: 5.9.3
