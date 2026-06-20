@@ -266,6 +266,9 @@ describe("migrate(): fail-fast (P4)", () => {
         ): Promise<Result<void>> {
           return real.store.patch<T>(collection, id, value);
         },
+        get<T = unknown>(collection: string, id: DocumentId): Promise<Result<T | null>> {
+          return real.store.get<T>(collection, id);
+        },
       },
     };
   }
@@ -310,6 +313,9 @@ describe("migrate(): fail-fast (P4)", () => {
         ): Promise<Result<void>> {
           return target.store.patch<T>(collection, id, value);
         },
+        get<T = unknown>(collection: string, id: DocumentId): Promise<Result<T | null>> {
+          return target.store.get<T>(collection, id);
+        },
       },
     };
 
@@ -319,5 +325,48 @@ describe("migrate(): fail-fast (P4)", () => {
     expect(report.error?.phase).toBe("copy");
     expect(report.error?.error.code).toBe("validation");
     expect(await listAll(target, "todos")).toHaveLength(0); // nothing landed
+  });
+
+  it("aborts when an inserted row cannot be read back (target filters reads, e.g. Supabase RLS)", async () => {
+    const source = fresh();
+    await insertRow(source, "todos", { title: "a" });
+    await insertRow(source, "todos", { title: "b" });
+
+    // A target that accepts inserts but whose reads are filtered: insert/patch
+    // succeed, but get() always returns null (the row is invisible to this key).
+    // This is the Supabase insert-allowed/select-denied RLS case, which silently
+    // breaks resume (the next run's resume scan sees an empty target and
+    // re-copies). migrate must fail loudly on the FIRST copied row instead.
+    const real = fresh();
+    const readFilteredTarget: MigrateEndpoint = {
+      store: {
+        list<T = unknown>(collection: string, opts?: ListOptions): Promise<Result<ListPage<T>>> {
+          return real.store.list<T>(collection, opts);
+        },
+        insert<T = Row>(collection: string, value: T): Promise<Result<DocumentId>> {
+          return real.store.insert<T>(collection, value);
+        },
+        patch<T = Row>(
+          collection: string,
+          id: DocumentId,
+          value: Partial<T>,
+        ): Promise<Result<void>> {
+          return real.store.patch<T>(collection, id, value);
+        },
+        get<T = unknown>(_collection: string, _id: DocumentId): Promise<Result<T | null>> {
+          return Promise.resolve(ok(null)); // reads are filtered: row invisible
+        },
+      },
+    };
+
+    const report = await migrate(source, readFilteredTarget, { collections: ["todos"] });
+
+    expect(report.ok).toBe(false);
+    expect(report.error?.collection).toBe("todos");
+    expect(report.error?.phase).toBe("copy");
+    expect(report.error?.error.code).toBe("validation");
+    expect(report.error?.error.message).toMatch(/read it back/i);
+    // It aborts on the FIRST inserted row, before copying the rest.
+    expect(report.collections.todos?.copied).toBe(1);
   });
 });

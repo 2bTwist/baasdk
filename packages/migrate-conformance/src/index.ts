@@ -94,6 +94,7 @@ function faultyTarget(real: MigrateBackend, failOnInsertCall: number): MigrateEn
       },
       patch: (collection: string, id: DocumentId, value: unknown) =>
         real.store.patch(collection, id, value as Partial<unknown>),
+      get: (collection: string, id: DocumentId) => real.store.get(collection, id),
     },
   };
 }
