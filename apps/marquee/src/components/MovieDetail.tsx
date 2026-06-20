@@ -1,9 +1,11 @@
 import type { Backend, DocumentId } from "@baas/core";
 import { useEffect, useState } from "react";
+import { useAuth } from "../lib/auth";
 import { getMovieCredits, joinsServerSide } from "../lib/enrich";
 import { type Genre, getMovie, listGenres, type Movie, type WithId } from "../lib/movies";
 import type { CastMember, MarqueeSchema } from "../lib/schema";
 import { CastList } from "./CastList";
+import { ReviewSection } from "./ReviewSection";
 
 interface MovieDetailProps {
   readonly backend: Backend<MarqueeSchema>;
@@ -31,6 +33,7 @@ export function MovieDetail({
   onBack,
   onEdit,
 }: MovieDetailProps): React.JSX.Element {
+  const { canEditCatalog } = useAuth();
   const [movie, setMovie] = useState<WithId<Movie> | null>(null);
   const [genreNames, setGenreNames] = useState<ReadonlyMap<string, string>>(new Map());
   const [cast, setCast] = useState<ReadonlyArray<CastMember>>([]);
@@ -119,9 +122,12 @@ export function MovieDetail({
               </>
             )}
 
-            {movie.genres.length > 0 ? (
+            {/* Defensive: a schemaless backend (Convex) omits a field that was
+                never written, so `genres` can be undefined even though the type
+                says otherwise; Supabase fills it from a column default. */}
+            {(movie.genres ?? []).length > 0 ? (
               <div className="detail-genres">
-                {movie.genres.map((slug) => (
+                {(movie.genres ?? []).map((slug) => (
                   <span key={slug} className="genre-tag">
                     {genreLabel(slug)}
                   </span>
@@ -131,10 +137,14 @@ export function MovieDetail({
 
             <p className="detail-synopsis">{movie.synopsis || "No synopsis yet."}</p>
 
+            <ReviewSection backend={backend} movieId={movieId} />
+
             <div className="form-actions">
-              <button type="button" className="add-btn" onClick={() => onEdit(movie._id)}>
-                Edit
-              </button>
+              {canEditCatalog ? (
+                <button type="button" className="add-btn" onClick={() => onEdit(movieId)}>
+                  Edit
+                </button>
+              ) : null}
               <button type="button" className="link-btn" onClick={onBack}>
                 Back
               </button>

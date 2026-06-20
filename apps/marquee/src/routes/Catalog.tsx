@@ -1,5 +1,6 @@
 import type { Backend, Cursor, DocumentId } from "@baas/core";
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "../lib/auth";
 import { aggregatesServerSide, getGenreCounts } from "../lib/enrich";
 import {
   type Genre,
@@ -68,6 +69,7 @@ function toListArgs(query: Query, cursor?: Cursor): ListMoviesArgs {
  * the next page and hides itself once the cursor is null.
  */
 export function Catalog({ backend, onOpen, onCreate }: CatalogProps): React.JSX.Element {
+  const { canEditCatalog } = useAuth();
   const [query, setQuery] = useState<Query>(INITIAL_QUERY);
   const [movies, setMovies] = useState<ReadonlyArray<WithId<Movie>>>([]);
   const [cursor, setCursor] = useState<Cursor | null>(null);
@@ -168,9 +170,11 @@ export function Catalog({ backend, onOpen, onCreate }: CatalogProps): React.JSX.
             <code> backend.store </code> port. The same code runs on memory, Supabase, and Convex.
           </p>
         </div>
-        <button type="button" className="add-btn" onClick={onCreate}>
-          + Add movie
-        </button>
+        {canEditCatalog ? (
+          <button type="button" className="add-btn" onClick={onCreate}>
+            + Add movie
+          </button>
+        ) : null}
       </div>
 
       {topCounts.length > 0 ? (
