@@ -1,6 +1,6 @@
 {
   "name": "@baas/core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Port layer for the universal Backend-as-a-Service SDK. Interfaces and types only, no implementation.",
   "keywords": [
     "baas",

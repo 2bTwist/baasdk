@@ -1,6 +1,6 @@
 {
   "name": "@baas/adapter-supabase",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Supabase adapter: PostgREST document store, Supabase Auth (credential management), and Supabase Storage, behind the @baas/core ports.",
   "keywords": [
     "baas",
