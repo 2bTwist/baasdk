@@ -25,10 +25,20 @@ type Kind = "memory" | "supabase" | "convex";
 
 const arg = process.argv[2];
 if (arg !== "memory" && arg !== "supabase" && arg !== "convex") {
-  console.error("Usage: seed.mts <memory|supabase|convex>");
+  console.error("Usage: seed.mts <memory|supabase|convex> [movieCount]");
   process.exit(1);
 }
 const kind: Kind = arg;
+
+// Optional movie count (Phase 5 scale stress). Default 300 dev catalog; pass e.g.
+// 5000 to generate ~50-80k rows and exercise Convex per-mutation write limits +
+// pagination at scale. Each movie fans out to ~2 genre joins + ~4 credits.
+const countArg = process.argv[3];
+const MOVIE_COUNT = countArg ? Number(countArg) : 300;
+if (!Number.isInteger(MOVIE_COUNT) || MOVIE_COUNT < 1) {
+  console.error(`movieCount must be a positive integer, got "${countArg}"`);
+  process.exit(1);
+}
 
 function buildBackend(target: Kind): Backend {
   switch (target) {
@@ -345,8 +355,6 @@ function generateMovies(target: number): MovieSeed[] {
 // Inserts run sequentially in small awaited batches to keep the live backends
 // from being hammered and to surface the first error immediately.
 // ---------------------------------------------------------------------------
-
-const MOVIE_COUNT = 300;
 
 async function seed(backend: Backend): Promise<void> {
   console.log(`Seeding ${kind}: ${GENRES.length} genres, ${MOVIE_COUNT} movies...`);
