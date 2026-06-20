@@ -17,7 +17,26 @@
  *    every re-minted row is stamped with `migratedFrom: <oldId>`, so a re-run
  *    skips what already landed (mirrors `@get-convex/migrations`).
  *  - NOT a schema/DDL tool. It copies DATA into collections that already exist on
- *    the target; create the target's tables/columns first.
+ *    the target; create the target's tables/columns first. A STRICT-SCHEMA target
+ *    (Postgres/Supabase) additionally needs a nullable `migratedFrom` text column
+ *    on every migrated table — the resume marker is stamped on each row and read
+ *    back to resume, and it is NOT part of the source schema, so it is easy to
+ *    miss. A schemaless target (Convex) accepts the field with no setup. Without
+ *    it, the first insert fails ("Could not find the 'migratedFrom' column …").
+ *  - The two-pass copy inserts each row's foreign keys with the SOURCE id first,
+ *    then rewrites them to the target's id in the relink pass. So on a strict
+ *    relational target the FK columns must be PERMISSIVE during the copy — a plain
+ *    `text` column with NO foreign-key constraint. A `uuid`-typed or FK-constrained
+ *    column rejects the transient source id before relink can fix it ("invalid
+ *    input syntax for type uuid", or a constraint violation). A schemaless target
+ *    (Convex) has neither problem. Both limits are inherent to copy-then-relink and
+ *    were surfaced by the Marquee dogfood's reverse Convex->Supabase cutover.
+ *    NOTE the resulting tension on Postgres: a FK constraint is exactly what
+ *    PostgREST needs to resolve a server-side embedded join (the `serverSideJoins`
+ *    capability), yet it is what blocks the same table from being a migration
+ *    TARGET. A schema tuned for native joins is not automatically a clean migration
+ *    target; reconcile per table (e.g. a permissive join table vs a constrained
+ *    one), or migrate INTO the schemaless backend, which the forward direction does.
  *
  * IDs change by design (the target re-mints its own), so external references that
  * embed an old primary key must be remapped by the caller. Values are copied
