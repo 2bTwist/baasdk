@@ -79,3 +79,21 @@ export async function makeSupabaseConformanceBackend(): Promise<Backend<Conforma
     },
   });
 }
+
+/**
+ * A Supabase backend for the live migrate conformance suite. The suite drives
+ * only the portable store port, so named queries/mutations are empty. The reset
+ * truncates ONLY the migrate tables (`m_people`/`m_tasks`), never the contract
+ * suite's todos/notes/items, so the two suites can run against the same stack
+ * without racing each other's data.
+ */
+export async function makeSupabaseMigrateBackend(): Promise<Backend> {
+  const sb = createClient(url as string, key as string, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  await sb.from("m_tasks").delete().not("id", "is", null);
+  await sb.from("m_people").delete().not("id", "is", null);
+
+  return createSupabaseBackend({ client: sb, queries: {}, mutations: {} });
+}

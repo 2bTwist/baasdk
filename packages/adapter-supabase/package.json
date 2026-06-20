@@ -48,6 +48,7 @@
   },
   "devDependencies": {
     "@baas/conformance": "workspace:^",
+    "@baas/migrate-conformance": "workspace:^",
     "@supabase/supabase-js": "^2",
     "tsup": "^8",
     "typescript": "^5.7",

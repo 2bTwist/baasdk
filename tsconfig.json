@@ -6,6 +6,7 @@
     "paths": {
       "@baas/core": ["packages/core/src/index.ts"],
       "@baas/conformance": ["packages/conformance/src/index.ts"],
+      "@baas/migrate-conformance": ["packages/migrate-conformance/src/index.ts"],
       "@baas/adapter-memory": ["packages/adapter-memory/src/index.ts"],
       "@baas/migrate": ["packages/migrate/src/index.ts"],
       "@baas/adapter-supabase": ["packages/adapter-supabase/src/index.ts"],

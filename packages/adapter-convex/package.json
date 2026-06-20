@@ -53,6 +53,7 @@
   },
   "devDependencies": {
     "@baas/conformance": "workspace:^",
+    "@baas/migrate-conformance": "workspace:^",
     "@edge-runtime/vm": "^5",
     "convex": "^1",
     "convex-test": "^0.0.53",

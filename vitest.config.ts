@@ -11,6 +11,9 @@ export default defineConfig({
     alias: {
       "@baas/core": src("./packages/core/src/index.ts"),
       "@baas/conformance": src("./packages/conformance/src/index.ts"),
+      // The longer name MUST precede "@baas/migrate": Vite matches aliases by
+      // prefix, so the bare one would otherwise capture "@baas/migrate-conformance".
+      "@baas/migrate-conformance": src("./packages/migrate-conformance/src/index.ts"),
       "@baas/adapter-memory": src("./packages/adapter-memory/src/index.ts"),
       "@baas/migrate": src("./packages/migrate/src/index.ts"),
       "@baas/adapter-supabase": src("./packages/adapter-supabase/src/index.ts"),

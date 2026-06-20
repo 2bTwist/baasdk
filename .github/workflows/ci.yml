@@ -131,6 +131,11 @@ jobs:
             | sed 's/"//g' >> "$GITHUB_ENV"
       - name: Run live conformance
         run: pnpm exec vitest run packages/adapter-supabase/test/conformance.test.ts
+      - name: Run live migrate conformance (memory <-> Supabase, both directions)
+        # Separate invocation (not bundled with the contract suite above): the two
+        # suites reset different tables, but a separate run keeps a migrate failure
+        # legible and matches the examples isolation pattern below.
+        run: pnpm exec vitest run packages/adapter-supabase/test/migrate-conformance.test.ts
       - name: Run the examples against the live stack
         # Separate invocation (not parallel with the suite above) so they never
         # contend on the shared `todos` table; --no-file-parallelism serializes
@@ -190,6 +195,12 @@ jobs:
         env:
           CONVEX_URL: http://127.0.0.1:3210
         run: pnpm exec vitest run packages/adapter-convex/test/conformance.test.ts
+      - name: Run live migrate conformance (memory <-> Convex, both directions)
+        # The run that exercises the marker insert into a real Convex backend (the
+        # `_`-prefixed-field rejection class). Schemaless, so no deploy change.
+        env:
+          CONVEX_URL: http://127.0.0.1:3210
+        run: pnpm exec vitest run packages/adapter-convex/test/migrate-conformance.test.ts
       - name: Teardown
         if: always()
         run: docker rm -f convex-backend || true

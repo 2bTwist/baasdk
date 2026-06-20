@@ -47,3 +47,17 @@ export async function makeConvexConformanceBackend(): Promise<Backend<Conformanc
     },
   });
 }
+
+/**
+ * A Convex backend for the live migrate conformance suite. The suite drives only
+ * the portable store port (the generic CRUD already serves arbitrary schemaless
+ * tables, as the conformance suite's `notes` usage proves), so named
+ * queries/mutations are empty. The reset clears ONLY the migrate tables, never
+ * the contract suite's todos/notes/items.
+ */
+export async function makeConvexMigrateBackend(): Promise<Backend> {
+  const client = new ConvexClient(url as string);
+  await client.mutation(testing.reset, { tables: ["m_people", "m_tasks"] });
+
+  return createConvexBackend({ client, queries: {}, mutations: {} });
+}
