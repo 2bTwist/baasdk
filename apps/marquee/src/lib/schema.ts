@@ -25,9 +25,23 @@ export interface GenreCount {
   readonly count: number;
 }
 
+/** Average rating + count for a movie (the aggregation deferred from Phase 2). */
+export interface MovieRating {
+  readonly avg: number;
+  readonly count: number;
+}
+
 /** A named query that takes no arguments. */
 type NoArgs = Record<string, never>;
 
+/**
+ * Phase 3 adds the security-sensitive WRITE path as named MUTATIONS (own-only
+ * reviews), kept off the generic portable CRUD on purpose: the generic store is
+ * the admin/seed primitive, while real per-row policy is where backends diverge,
+ * so it rides the named-operation seam (Supabase under RLS; Convex via ctx.auth).
+ * The actor's identity is NEVER taken from these args; it is derived from the
+ * authenticated session (auth.uid() / ctx.auth.subject).
+ */
 export interface MarqueeSchema extends StoreSchema {
   readonly queries: {
     readonly movieCredits: {
@@ -35,6 +49,23 @@ export interface MarqueeSchema extends StoreSchema {
       readonly result: CastMember[];
     };
     readonly genreCounts: { readonly args: NoArgs; readonly result: GenreCount[] };
+    readonly movieRating: {
+      readonly args: { readonly movieId: string };
+      readonly result: MovieRating;
+    };
   };
-  readonly mutations: NoArgs;
+  readonly mutations: {
+    readonly addReview: {
+      readonly args: { readonly movieId: string; readonly rating: number; readonly body: string };
+      readonly result: { readonly id: string };
+    };
+    readonly editReview: {
+      readonly args: { readonly reviewId: string; readonly rating: number; readonly body: string };
+      readonly result: null;
+    };
+    readonly deleteReview: {
+      readonly args: { readonly reviewId: string };
+      readonly result: null;
+    };
+  };
 }

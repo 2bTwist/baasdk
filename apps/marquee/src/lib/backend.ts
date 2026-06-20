@@ -3,6 +3,14 @@ import { createMemoryBackend } from "@baas/adapter-memory";
 import { createSupabaseBackend } from "@baas/adapter-supabase";
 import type { Backend } from "@baas/core";
 import { convexQueries, memoryQueries, supabaseQueries } from "./enrich";
+import {
+  convexRatingQuery,
+  convexReviewMutations,
+  memoryRatingQuery,
+  memoryReviewMutations,
+  supabaseRatingQuery,
+  supabaseReviewMutations,
+} from "./reviews";
 import type { MarqueeSchema } from "./schema";
 
 /**
@@ -44,7 +52,10 @@ export const BACKENDS: readonly BackendChoice[] = [
 export function makeBackend(kind: BackendKind): Backend<MarqueeSchema> {
   switch (kind) {
     case "memory":
-      return createMemoryBackend<MarqueeSchema>({ queries: memoryQueries, mutations: {} });
+      return createMemoryBackend<MarqueeSchema>({
+        queries: { ...memoryQueries, movieRating: memoryRatingQuery },
+        mutations: memoryReviewMutations,
+      });
 
     case "supabase": {
       const url = env.VITE_SUPABASE_URL;
@@ -55,15 +66,19 @@ export function makeBackend(kind: BackendKind): Backend<MarqueeSchema> {
       return createSupabaseBackend<MarqueeSchema>({
         url,
         key,
-        queries: supabaseQueries,
-        mutations: {},
+        queries: { ...supabaseQueries, movieRating: supabaseRatingQuery },
+        mutations: supabaseReviewMutations,
       });
     }
 
     case "convex": {
       const url = env.VITE_CONVEX_URL;
       if (!url) throw new Error("Convex backend needs VITE_CONVEX_URL.");
-      return createConvexBackend<MarqueeSchema>({ url, queries: convexQueries, mutations: {} });
+      return createConvexBackend<MarqueeSchema>({
+        url,
+        queries: { ...convexQueries, movieRating: convexRatingQuery },
+        mutations: convexReviewMutations,
+      });
     }
 
     default: {

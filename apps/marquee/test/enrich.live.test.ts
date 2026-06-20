@@ -22,7 +22,22 @@ import {
   memoryQueries,
   supabaseQueries,
 } from "../src/lib/enrich";
+import {
+  convexRatingQuery,
+  convexReviewMutations,
+  memoryRatingQuery,
+  memoryReviewMutations,
+  supabaseRatingQuery,
+  supabaseReviewMutations,
+} from "../src/lib/reviews";
 import type { MarqueeSchema } from "../src/lib/schema";
+
+// Complete query/mutation maps so the backends satisfy the full MarqueeSchema
+// (this test only exercises the Phase 2 join/aggregation, but the schema now also
+// carries movieRating + the review mutations from Phase 3).
+const memoryQ = { ...memoryQueries, movieRating: memoryRatingQuery };
+const supabaseQ = { ...supabaseQueries, movieRating: supabaseRatingQuery };
+const convexQ = { ...convexQueries, movieRating: convexRatingQuery };
 
 interface Target {
   readonly name: string;
@@ -40,7 +55,8 @@ const TARGETS: readonly Target[] = [
     name: "memory",
     available: true,
     serverSide: false,
-    make: () => createMemoryBackend<MarqueeSchema>({ queries: memoryQueries, mutations: {} }),
+    make: () =>
+      createMemoryBackend<MarqueeSchema>({ queries: memoryQ, mutations: memoryReviewMutations }),
   },
   {
     name: "supabase",
@@ -50,8 +66,8 @@ const TARGETS: readonly Target[] = [
       createSupabaseBackend<MarqueeSchema>({
         url: sbUrl as string,
         key: sbKey as string,
-        queries: supabaseQueries,
-        mutations: {},
+        queries: supabaseQ,
+        mutations: supabaseReviewMutations,
       }),
   },
   {
@@ -61,8 +77,8 @@ const TARGETS: readonly Target[] = [
     make: () =>
       createConvexBackend<MarqueeSchema>({
         url: cxUrl as string,
-        queries: convexQueries,
-        mutations: {},
+        queries: convexQ,
+        mutations: convexReviewMutations,
       }),
   },
 ];
