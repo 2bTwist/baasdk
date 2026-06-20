@@ -7,6 +7,12 @@
 
 <h1 align="center">baasdk</h1>
 
+<p align="center">
+  <a href="https://github.com/2bTwist/baasdk/actions/workflows/ci.yml"><img src="https://github.com/2bTwist/baasdk/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+  <a href="https://2btwist.github.io/baasdk/"><img src="https://img.shields.io/badge/demo-live-3ecf8e" alt="Live demo" /></a>
+  <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT" />
+</p>
+
 > One portable TypeScript contract over **Supabase**, **Convex**, and an
 > in-memory backend: document CRUD, auth, and file storage, with declared
 > capability flags and a typed `.native()` escape hatch. The same conformance
