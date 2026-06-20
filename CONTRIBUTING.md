@@ -19,6 +19,9 @@ Workspace layout (pnpm + Turborepo + Changesets, ESM-only via tsup):
   by a `makeBackend` constructor and run unchanged against every adapter.
 - `packages/adapter-memory` is the in-memory reference adapter.
 - `packages/adapter-supabase` is the Supabase adapter.
+- `packages/adapter-convex` is the Convex adapter.
+- `packages/migrate` (`@baas/migrate`) is the one-time data cutover built on the
+  core `list`/`insert`/`patch` primitives.
 
 ## The gates
 

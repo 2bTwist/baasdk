@@ -12,9 +12,10 @@ create table if not exists public.todos (
 );
 
 create table if not exists public.notes (
-  id     uuid primary key default gen_random_uuid(),
-  body   text,
-  pinned boolean not null default false
+  id         uuid primary key default gen_random_uuid(),
+  body       text,
+  pinned     boolean not null default false,
+  created_at timestamptz not null default now()
 );
 
 -- Grant table access to the API roles. On a FRESH database (every CI run) the

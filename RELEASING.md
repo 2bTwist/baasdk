@@ -27,7 +27,7 @@ specific package, instead of a stored token.
 
 1. **Own the `@baas` scope/org** on npm.
 2. For **each publishable package** (`@baas/core`, `@baas/adapter-memory`,
-   `@baas/adapter-supabase`, `@baas/adapter-convex`), open
+   `@baas/adapter-supabase`, `@baas/adapter-convex`, `@baas/migrate`), open
    `https://www.npmjs.com/package/<name>/access` and add a **trusted publisher**:
    - Provider: GitHub Actions
    - Repository: `2bTwist/baasdk`

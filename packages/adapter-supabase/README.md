@@ -124,7 +124,7 @@ exercise this path.
 **Scaling caveat.** Supabase per-client `postgres_changes` fans out under RLS
 (one write with N subscribers triggers N authorized reads), and re-running the
 query multiplies that. For high-write tables, prefer `native()` Realtime with a
-server-side fan-in. Filtered watches are not yet supported.
+server-side fan-in.
 
 ## Running the conformance suite (live)
 
@@ -138,7 +138,7 @@ supabase start                       # boots Postgres/PostgREST/GoTrue/Storage v
 export SUPABASE_URL="http://127.0.0.1:54321"
 export SUPABASE_SERVICE_ROLE_KEY="$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')"
 
-pnpm vitest run packages/adapter-supabase   # 15/15 against the live stack
+pnpm vitest run packages/adapter-supabase   # the suite against the live stack
 supabase stop                        # tear the stack down when done
 ```
 

@@ -5,9 +5,9 @@ and the proof the portable contract is not Supabase-shaped: it diverges hard
 (server-only `ctx.db`, native reactivity, JWT-verify-only auth, an
 upload-URL-then-POST file dance), and the same conformance suite must still pass.
 
-> **Status: in progress (milestone M2).** This first slice ships the *deployable
-> server helpers* (the `./convex` entry) plus hermetic `convex-test` coverage.
-> The client-side adapter (`createConvexBackend`, the `.` entry) lands next.
+> Ships the client adapter (`createConvexBackend`, the `.` entry) and the
+> *deployable server helpers* (the `./convex` entry), with hermetic `convex-test`
+> coverage and the live conformance suite green in CI on every commit.
 
 ## Why deployable helpers (and not a Convex Component)
 

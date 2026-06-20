@@ -5,7 +5,8 @@
     "packages/core/src/index.ts",
     "packages/adapter-memory/src/index.ts",
     "packages/adapter-supabase/src/index.ts",
-    "packages/adapter-convex/src/index.ts"
+    "packages/adapter-convex/src/index.ts",
+    "packages/migrate/src/index.ts"
   ],
   "tsconfig": "tsconfig.json",
   "out": "docs/api",
