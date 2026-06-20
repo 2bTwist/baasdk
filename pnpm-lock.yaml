@@ -86,6 +86,9 @@ importers:
       '@baas/core':
         specifier: workspace:^
         version: link:../../packages/core
+      '@baas/migrate':
+        specifier: workspace:^
+        version: link:../../packages/migrate
       '@supabase/supabase-js':
         specifier: ^2
         version: 2.108.2

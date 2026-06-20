@@ -843,3 +843,111 @@ main {
   color: var(--faint);
   font-size: 13px;
 }
+
+/* Phase 5: admin Migrate panel. */
+.admin-nav {
+  font-weight: 600;
+}
+
+.migrate-direction {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0 16px;
+}
+
+.backend-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  color: #fff;
+  background: var(--faint);
+}
+.backend-pill[data-kind="supabase"] {
+  background: var(--sb);
+}
+.backend-pill[data-kind="convex"] {
+  background: var(--cx);
+}
+.backend-pill[data-kind="memory"] {
+  background: var(--blue);
+}
+
+.migrate-flip {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.migrate-warn {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--cx) 8%, transparent);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.migrate-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  font-size: 14px;
+}
+.migrate-table th,
+.migrate-table td {
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.migrate-table th {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.migrate-table td:not(:first-child) {
+  font-variant-numeric: tabular-nums;
+}
+
+.migrate-progress {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.migrate-progress li {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.migrate-collection {
+  font-weight: 600;
+}
+.migrate-count {
+  font-family: var(--mono);
+  color: var(--faint);
+}
+
+.migrate-result {
+  margin: 16px 0 4px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 700;
+}
+.migrate-result.ok {
+  background: color-mix(in srgb, var(--sb) 14%, transparent);
+  color: var(--sb);
+}
+.migrate-result.fail {
+  background: color-mix(in srgb, var(--cx) 14%, transparent);
+  color: var(--cx);
+}

@@ -3,9 +3,10 @@ import { useCallback, useMemo, useState } from "react";
 import { AuthBar } from "./components/AuthBar";
 import { BackendBadge } from "./components/BackendBadge";
 import { BackendSwitcher } from "./components/BackendSwitcher";
+import { MigratePanel } from "./components/MigratePanel";
 import { MovieDetail } from "./components/MovieDetail";
 import { MovieForm } from "./components/MovieForm";
-import { AuthProvider } from "./lib/auth";
+import { AuthProvider, useAuth } from "./lib/auth";
 import { BACKENDS, type BackendKind, initialBackendKind, makeBackend } from "./lib/backend";
 import type { MarqueeSchema } from "./lib/schema";
 import { Catalog } from "./routes/Catalog";
@@ -17,7 +18,20 @@ import { Catalog } from "./routes/Catalog";
 type View =
   | { readonly name: "catalog" }
   | { readonly name: "detail"; readonly id: DocumentId }
-  | { readonly name: "form"; readonly id?: DocumentId };
+  | { readonly name: "form"; readonly id?: DocumentId }
+  | { readonly name: "migrate" };
+
+/** Admin-only nav (the Migrate panel). Lives inside AuthProvider so it can read
+ *  the role; renders nothing for non-admins. */
+function AdminNav({ onMigrate }: { readonly onMigrate: () => void }): React.JSX.Element | null {
+  const { canAdmin } = useAuth();
+  if (!canAdmin) return null;
+  return (
+    <button type="button" className="link-btn admin-nav" onClick={onMigrate}>
+      Migrate
+    </button>
+  );
+}
 
 export function App(): React.JSX.Element {
   const [kind, setKind] = useState<BackendKind>(initialBackendKind);
@@ -51,6 +65,7 @@ export function App(): React.JSX.Element {
           </button>
           <div className="header-right">
             <AuthBar />
+            <AdminNav onMigrate={() => setView({ name: "migrate" })} />
             <BackendSwitcher active={kind} onSelect={onSelectBackend} />
             <BackendBadge kind={choice.kind} label={choice.label} color={choice.color} />
           </div>
@@ -69,13 +84,15 @@ export function App(): React.JSX.Element {
             onBack={() => setView({ name: "catalog" })}
             onEdit={(id) => setView({ name: "form", id })}
           />
-        ) : (
+        ) : view.name === "form" ? (
           <MovieForm
             backend={backend}
             {...(view.id !== undefined ? { movieId: view.id } : {})}
             onSaved={(id) => setView({ name: "detail", id })}
             onCancel={() => setView({ name: "catalog" })}
           />
+        ) : (
+          <MigratePanel onBack={() => setView({ name: "catalog" })} />
         )}
       </div>
     </AuthProvider>

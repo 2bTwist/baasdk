@@ -3,7 +3,7 @@
   "ignore": ["**/_generated/**", "**/test/convex/**", "demo/**", "scripts/demo.mjs"],
   "workspaces": {
     "apps/marquee": {
-      "entry": ["convex/*.ts", "scripts/seed.mts", "test/**/*.test.ts"]
+      "entry": ["convex/*.ts", "scripts/*.mts", "test/**/*.test.ts"]
     }
   }
 }

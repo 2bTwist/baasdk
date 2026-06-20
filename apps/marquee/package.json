@@ -15,6 +15,7 @@
     "@baas/adapter-memory": "workspace:^",
     "@baas/adapter-supabase": "workspace:^",
     "@baas/core": "workspace:^",
+    "@baas/migrate": "workspace:^",
     "@supabase/supabase-js": "^2",
     "convex": "^1",
     "react": "^19.1.0",
