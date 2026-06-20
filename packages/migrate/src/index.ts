@@ -61,6 +61,18 @@ export interface MigrateOptions {
   /** Page size for `source.list()`. Default 100; `list()` clamps to [1, 200]. */
   readonly batchSize?: number;
   /**
+   * Reject any row whose copied payload serializes to more than this many UTF-8
+   * bytes, BEFORE inserting it, with a `validation` error that names the row and
+   * its size. Opt-in (off by default, so the abstraction bakes in no backend's
+   * limit). Set it when the target enforces a per-document/per-value size cap and
+   * you want a clear, early failure instead of a provider-specific error
+   * mid-insert: a **Convex** target caps a single value at ~1 MiB and a single
+   * mutation at 16 MiB, so `maxValueBytes: 1_000_000` is a sensible bound there.
+   * Size is measured portably (UTF-8 length of `JSON.stringify(payload)`), a
+   * conservative proxy for the encoded document size.
+   */
+  readonly maxValueBytes?: number;
+  /**
    * Extra fields to drop before re-inserting, on top of the always-stripped
    * backend system fields (`_id`, `_creationTime`). Use this for an adapter-named
    * primary key or timestamp that `list()` surfaces as a regular column (e.g. a
@@ -122,6 +134,31 @@ const MARKER = "migratedFrom";
 /** Backend system fields never carried across; the target re-mints its own. */
 const SYSTEM_FIELDS = ["_id", "_creationTime"] as const;
 const DEFAULT_BATCH = 100;
+
+/**
+ * UTF-8 byte length of a value's JSON encoding, or `null` if the value cannot be
+ * serialized to measure. Used by the opt-in `maxValueBytes` guard as a portable,
+ * conservative proxy for the encoded document size. `TextEncoder` works in both
+ * Node and the browser (the demo runs migrate in the browser), unlike `Buffer`.
+ *
+ * `JSON.stringify` throws on a `bigint`, but a `bigint` is a legitimate value (a
+ * Convex `int64`), so measure it as its decimal string rather than rejecting it:
+ * a conservative over-estimate that never throws. A value that STILL cannot
+ * serialize (a circular reference) returns `null`, and the caller skips the size
+ * check for that row rather than crashing or rejecting a possibly-valid value —
+ * such a value would be caught by the backend's own insert error if unstorable.
+ */
+const ENCODER = new TextEncoder();
+function byteLength(value: unknown): number | null {
+  try {
+    const json = JSON.stringify(value, (_k: string, v: unknown) =>
+      typeof v === "bigint" ? v.toString() : v,
+    );
+    return ENCODER.encode(json).length;
+  } catch {
+    return null;
+  }
+}
 
 /** Internal fail-fast signal: carries the structured error to the top-level catch. */
 class MigrateAbort extends Error {
@@ -195,6 +232,7 @@ export async function migrate(
   opts: MigrateOptions,
 ): Promise<MigrateReport> {
   const batchSize = opts.batchSize ?? DEFAULT_BATCH;
+  const maxValueBytes = opts.maxValueBytes;
   // MARKER is reserved and migrate-owned: drop any value the source carries under
   // it (e.g. stale lineage from a prior migration) so this run stamps fresh.
   const strip = new Set<string>([...SYSTEM_FIELDS, MARKER, ...(opts.stripFields ?? [])]);
@@ -259,6 +297,25 @@ export async function migrate(
                 if (!strip.has(key)) payload[key] = value;
               }
               payload[MARKER] = oldId;
+              // Byte-bound guard (opt-in): reject an oversized payload up front
+              // with an actionable error, rather than letting a size-capped target
+              // (Convex: ~1 MiB/value, 16 MiB/mutation) reject it with a
+              // provider-specific message mid-insert. Portable: the size is the
+              // UTF-8 length of the JSON encoding, a conservative proxy.
+              if (maxValueBytes !== undefined) {
+                const bytes = byteLength(payload);
+                if (bytes !== null && bytes > maxValueBytes) {
+                  throw new MigrateAbort({
+                    collection,
+                    phase: "copy",
+                    oldId,
+                    error: {
+                      code: "validation",
+                      message: `row "${oldId}" in "${collection}" serializes to ${bytes} bytes, over the configured maxValueBytes (${maxValueBytes}); shrink or split the value before migrating (a Convex target caps a single value at ~1 MiB and a mutation at 16 MiB)`,
+                    },
+                  });
+                }
+              }
               const newId = unwrap(await target.store.insert(collection, payload), {
                 collection,
                 phase: "copy",

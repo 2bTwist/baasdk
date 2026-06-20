@@ -75,6 +75,23 @@ starting with `_`, so an underscore marker would make Convex unusable as a targe
 A source row whose `_id` is missing or non-scalar aborts the run with a
 `validation` error rather than silently corrupting the id map.
 
+## Size and scan bounds (Convex limits)
+
+Convex caps a single mutation at **16 MiB written / 32,000 documents scanned /
+4,096 index ranges**, and a single value at **~1 MiB**. migrate stays within them:
+
+- **Reads page small.** Both the copy scan and the resume-index scan page through
+  `list()`, whose page size is clamped to **≤ 200**, well under the 32k
+  docs-scanned limit. Each page is its own query, so an arbitrarily large source or
+  target collection is migrated in bounded pages, never one giant scan.
+- **Writes are per row.** Each row is inserted on its own (one mutation per row),
+  so the 16 MiB-per-mutation limit only bites if a single row exceeds it. To catch
+  that early with a clear error rather than a provider-specific mid-insert
+  rejection, set **`maxValueBytes`** (opt-in): a row whose copied payload
+  serializes to more than that many UTF-8 bytes aborts with a `validation` error
+  before the insert. `maxValueBytes: 1_000_000` is a sensible bound for a Convex
+  target. It is off by default, so the abstraction bakes in no backend's limit.
+
 ## Preconditions
 
 ### Supabase target: use a service-role key (full read + write)
