@@ -1,6 +1,6 @@
 {
   "name": "@baas/migrate",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "One-time portable data cutover between any two Backends. Pages a source with list(), re-inserts into a target with insert(), remaps relations with patch(). Built on the core port, depends on no provider SDK.",
   "keywords": [
     "baas",

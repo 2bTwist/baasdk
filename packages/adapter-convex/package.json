@@ -1,6 +1,6 @@
 {
   "name": "@baas/adapter-convex",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Convex adapter for @baas/core: reactive document store, JWT-verify auth, file storage, and deployable schemaless CRUD helpers (the ./convex entry), behind the ports.",
   "keywords": [
     "baas",
