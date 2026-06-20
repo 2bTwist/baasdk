@@ -35,7 +35,10 @@ jobs:
       - name: Build the in-memory demo
         run: |
           cp demo/config.example.js demo/config.js
-          pnpm exec esbuild demo/app.ts --bundle --outfile=demo/bundle.js --platform=browser --format=esm
+          # --tsconfig forces esbuild to resolve @baas/* to workspace SOURCE via
+          # the root tsconfig paths, so the demo bundles without a prior package
+          # build (a clean CI install has no dist/).
+          pnpm exec esbuild demo/app.ts --bundle --outfile=demo/bundle.js --platform=browser --format=esm --tsconfig=tsconfig.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
